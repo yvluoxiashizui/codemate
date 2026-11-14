@@ -61,7 +61,18 @@ func (o *OpenAI) Next(ctx context.Context, messages []message.Message) (message.
 		return message.Step{}, fmt.Errorf("Model request failed: %d", res.StatusCode)
 	}
 	if len(data.Choices) == 0 {
-		return message.AssistantStep("", message.ContentNone, message.Diagnostics{StopReason: "empty_choices"}), nil
+		return message.AssistantStep("", message.ContentNone, message.Diagnostics{StopReason: "empty_choices"}).WithUsage(message.Usage{
+			InputTokens: data.Usage.PromptTokens,
+		}), nil
+	}
+
+	usage := message.Usage{
+		InputTokens:  data.Usage.PromptTokens,
+		OutputTokens: data.Usage.CompletionTokens,
+		TotalTokens:  data.Usage.TotalTokens,
+	}
+	if usage.TotalTokens == 0 {
+		usage.TotalTokens = usage.InputTokens + usage.OutputTokens
 	}
 
 	choice := data.Choices[0]
@@ -82,15 +93,20 @@ func (o *OpenAI) Next(ctx context.Context, messages []message.Message) (message.
 		if kind == message.ContentProgress {
 			contentKind = message.ContentProgress
 		}
-		return message.ToolCallsStep(calls, content, contentKind, diagnostics), nil
+		return message.ToolCallsStep(calls, content, contentKind, diagnostics).WithUsage(usage), nil
 	}
-	return message.AssistantStep(content, kind, diagnostics), nil
+	return message.AssistantStep(content, kind, diagnostics).WithUsage(usage), nil
 }
 
 type openAIResponse struct {
 	Error struct {
 		Message string `json:"message"`
 	} `json:"error"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
 	Choices []struct {
 		FinishReason string `json:"finish_reason"`
 		Message      struct {

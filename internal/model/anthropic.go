@@ -60,6 +60,10 @@ func (a *Anthropic) Next(ctx context.Context, messages []message.Message) (messa
 		} `json:"error"`
 		StopReason string         `json:"stop_reason"`
 		Content    []contentBlock `json:"content"`
+		Usage      struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
 		return message.Step{}, err
@@ -70,6 +74,12 @@ func (a *Anthropic) Next(ctx context.Context, messages []message.Message) (messa
 		}
 		return message.Step{}, fmt.Errorf("Model request failed: %d", res.StatusCode)
 	}
+
+	usage := message.Usage{
+		InputTokens:  data.Usage.InputTokens,
+		OutputTokens: data.Usage.OutputTokens,
+	}
+	usage.TotalTokens = usage.InputTokens + usage.OutputTokens
 
 	textParts := []string{}
 	calls := []message.ToolCall{}
@@ -98,9 +108,9 @@ func (a *Anthropic) Next(ctx context.Context, messages []message.Message) (messa
 		if kind == message.ContentProgress {
 			contentKind = message.ContentProgress
 		}
-		return message.ToolCallsStep(calls, content, contentKind, diagnostics), nil
+		return message.ToolCallsStep(calls, content, contentKind, diagnostics).WithUsage(usage), nil
 	}
-	return message.AssistantStep(content, kind, diagnostics), nil
+	return message.AssistantStep(content, kind, diagnostics).WithUsage(usage), nil
 }
 
 type contentBlock struct {

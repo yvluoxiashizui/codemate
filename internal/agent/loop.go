@@ -75,10 +75,12 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 		next, err := args.Model.Next(ctx, messages)
 		modelCalls++
 		record(args.Recorder, "model.call", map[string]any{
-			"step_index":  stepIndex,
-			"duration_ms": time.Since(modelStarted).Milliseconds(),
-			"stop_reason": next.Diagnostics.StopReason,
-			"ok":          err == nil,
+			"step_index":    stepIndex,
+			"duration_ms":   time.Since(modelStarted).Milliseconds(),
+			"stop_reason":   next.Diagnostics.StopReason,
+			"input_tokens":  next.Usage.InputTokens,
+			"output_tokens": next.Usage.OutputTokens,
+			"ok":            err == nil,
 		})
 		if err != nil {
 			return messages, err

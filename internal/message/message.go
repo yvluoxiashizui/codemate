@@ -84,6 +84,18 @@ const (
 	ContentProgress ContentKind = "progress"
 )
 
+// Usage 记录一次模型调用的 token 用量。
+type Usage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+	TotalTokens  int `json:"total_tokens"`
+}
+
+// IsZero 报告用量是否为空，用于区分「模型没返回」与「用量为零」。
+func (u Usage) IsZero() bool {
+	return u.InputTokens == 0 && u.OutputTokens == 0 && u.TotalTokens == 0
+}
+
 type Step struct {
 	Type        StepType
 	Content     string
@@ -91,6 +103,7 @@ type Step struct {
 	Calls       []ToolCall
 	ContentKind ContentKind
 	Diagnostics Diagnostics
+	Usage       Usage
 }
 
 func AssistantStep(content string, kind ContentKind, diagnostics Diagnostics) Step {
@@ -110,6 +123,12 @@ func ToolCallsStep(calls []ToolCall, content string, contentKind ContentKind, di
 		ContentKind: contentKind,
 		Diagnostics: diagnostics,
 	}
+}
+
+// WithUsage 附带本次调用的 token 用量。
+func (s Step) WithUsage(usage Usage) Step {
+	s.Usage = usage
+	return s
 }
 
 type Model interface {
