@@ -86,6 +86,7 @@ func run(ctx context.Context, argv []string) error {
 	store := session.Store{Dir: config.SessionsDir()}
 	sessionID := startup.ResumeID
 	messages := []message.Message{message.SystemMessage(systemPrompt)}
+	var rawMessages []message.Message
 	if sessionID != "" {
 		record, err := loadSessionRecord(store, sessionID)
 		if err != nil {
@@ -93,6 +94,7 @@ func run(ctx context.Context, argv []string) error {
 		}
 		sessionID = record.ID
 		messages = record.Messages
+		rawMessages = record.Raw
 	} else {
 		record := session.NewRecord(cwd, messages)
 		sessionID = record.ID
@@ -104,6 +106,7 @@ func run(ctx context.Context, argv []string) error {
 		Model:      adapter,
 		Runtime:    runtimePtr(runtime, runtimeErr),
 		Messages:   messages,
+		Raw:        rawMessages,
 		Permission: pm,
 		History:    session.History{Path: config.HistoryPath()},
 		Store:      store,

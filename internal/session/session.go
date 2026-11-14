@@ -21,6 +21,7 @@ type Args struct {
 	Model      message.Model
 	Runtime    *config.Runtime
 	Messages   []message.Message
+	Raw        []message.Message
 	Permission tools.PermissionManager
 	History    History
 	Store      Store
@@ -32,6 +33,7 @@ type Args struct {
 
 type Session struct {
 	args Args
+	raw  []message.Message
 }
 
 func New(args Args) *Session {
@@ -41,7 +43,11 @@ func New(args Args) *Session {
 	if args.Out == nil {
 		args.Out = os.Stdout
 	}
-	return &Session{args: args}
+	raw := args.Raw
+	if len(raw) == 0 {
+		raw = args.Messages
+	}
+	return &Session{args: args, raw: append([]message.Message(nil), raw...)}
 }
 
 func (s *Session) Run(ctx context.Context) error {
@@ -184,8 +190,10 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 	}
 
 	messages := append(s.args.Messages, message.UserMessage(input))
+	added := []message.Message{message.UserMessage(input)}
 	next, err := agent.RunTurn(ctx, agent.Args{
 		Recorder:   s.args.Recorder,
+		AddedOut:   &added,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
 		Messages:   messages,
@@ -208,6 +216,7 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 		return nil
 	}
 	s.args.Messages = next
+	s.raw = append(s.raw, added...)
 	if err := s.persistMessages(); err != nil {
 		return err
 	}
@@ -225,8 +234,10 @@ func (s *Session) persistMessages() error {
 		return nil
 	}
 	return s.args.Store.Save(Record{
+		Version:  RecordVersion,
 		ID:       s.args.SessionID,
 		CWD:      s.args.CWD,
+		Raw:      s.raw,
 		Messages: s.args.Messages,
 	})
 }

@@ -215,9 +215,11 @@ func (s *Session) handleTUIEvent(ctx context.Context, state *tuiState, event tui
 
 func (s *Session) runAgentForTUI(ctx context.Context, state *tuiState, input string) error {
 	messages := append(s.args.Messages, message.UserMessage(input))
+	added := []message.Message{message.UserMessage(input)}
 	pendingToolEntries := map[string][]int{}
 	next, err := agent.RunTurn(ctx, agent.Args{
 		Recorder:   s.args.Recorder,
+		AddedOut:   &added,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
 		Messages:   messages,
@@ -241,6 +243,7 @@ func (s *Session) runAgentForTUI(ctx context.Context, state *tuiState, input str
 		return err
 	}
 	s.args.Messages = next
+	s.raw = append(s.raw, added...)
 	return s.persistMessages()
 }
 

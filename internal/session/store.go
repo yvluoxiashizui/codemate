@@ -16,12 +16,17 @@ type Store struct {
 	Dir string
 }
 
+// RecordVersion 是当前存档格式版本。
+const RecordVersion = 2
+
 type Record struct {
+	Version   int               `json:"version"`
 	ID        string            `json:"id"`
 	CWD       string            `json:"cwd,omitempty"`
 	CreatedAt time.Time         `json:"createdAt"`
 	UpdatedAt time.Time         `json:"updatedAt"`
-	Messages  []message.Message `json:"messages"`
+	Raw       []message.Message `json:"raw"`
+	Messages  []message.Message `json:"working"`
 }
 
 type Summary struct {
@@ -34,10 +39,12 @@ type Summary struct {
 func NewRecord(cwd string, messages []message.Message) Record {
 	now := time.Now().UTC()
 	return Record{
+		Version:   RecordVersion,
 		ID:        now.Format("20060102-150405"),
 		CWD:       cwd,
 		CreatedAt: now,
 		UpdatedAt: now,
+		Raw:       append([]message.Message(nil), messages...),
 		Messages:  append([]message.Message(nil), messages...),
 	}
 }
@@ -74,11 +81,45 @@ func (s Store) Load(id string) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
-	var record Record
-	if err := json.Unmarshal(bytes, &record); err != nil {
+	var payload recordPayload
+	if err := json.Unmarshal(bytes, &payload); err != nil {
 		return Record{}, err
 	}
-	return record, nil
+	return payload.toRecord(), nil
+}
+
+// recordPayload 是存档的磁盘表示，保留 v1 的 messages 字段用于迁移。
+type recordPayload struct {
+	Version   int               `json:"version"`
+	ID        string            `json:"id"`
+	CWD       string            `json:"cwd,omitempty"`
+	CreatedAt time.Time         `json:"createdAt"`
+	UpdatedAt time.Time         `json:"updatedAt"`
+	Raw       []message.Message `json:"raw"`
+	Messages  []message.Message `json:"working"`
+	Legacy    []message.Message `json:"messages"`
+}
+
+func (p recordPayload) toRecord() Record {
+	record := Record{
+		Version:   p.Version,
+		ID:        p.ID,
+		CWD:       p.CWD,
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+		Raw:       p.Raw,
+		Messages:  p.Messages,
+	}
+	if record.Version < RecordVersion {
+		if len(record.Raw) == 0 {
+			record.Raw = p.Legacy
+		}
+		if len(record.Messages) == 0 {
+			record.Messages = record.Raw
+		}
+		record.Version = RecordVersion
+	}
+	return record
 }
 
 func (s Store) Latest() (Record, error) {
