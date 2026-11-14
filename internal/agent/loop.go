@@ -24,6 +24,7 @@ type Args struct {
 	OnAssistant       func(content string)
 	OnProgressMessage func(content string)
 	Recorder          Recorder
+	AddedOut          *[]message.Message
 	Window            int
 }
 
@@ -45,12 +46,22 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 		})
 	}()
 
+	added := make([]message.Message, 0, 8)
+	defer func() {
+		if args.AddedOut != nil {
+			*args.AddedOut = added
+		}
+	}()
 	maxSteps := args.MaxSteps
 	if maxSteps <= 0 {
 		maxSteps = 80
 	}
 
 	messages := append([]message.Message(nil), args.Messages...)
+	appendMessage := func(items ...message.Message) {
+		messages = append(messages, items...)
+		added = append(added, items...)
+	}
 
 	window := args.Window
 	if window <= 0 {
@@ -69,7 +80,7 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 	toolErrors := 0
 
 	pushContinuation := func(content string) {
-		messages = append(messages, message.UserMessage(content))
+		appendMessage(message.UserMessage(content))
 	}
 
 	for stepIndex := 0; stepIndex < maxSteps; stepIndex++ {
@@ -107,7 +118,7 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 			isEmpty := content == ""
 			if !isEmpty && shouldTreatAssistantAsProgress(next.Kind, content, sawToolResult) {
 				callProgress(args.OnProgressMessage, content)
-				messages = append(messages, message.ProgressMessage(content))
+				appendMessage(message.ProgressMessage(content))
 				if sawToolResult && next.Kind != message.ContentProgress {
 					pushContinuation("Continue from your progress update. You have already used tools in this turn, so treat plain status text as progress, not a final answer. Respond with the next concrete tool call, code change, or an explicit <final> answer only if the task is truly complete.")
 				} else {
@@ -125,7 +136,7 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 					continuation = "Your previous response hit max_tokens during thinking before producing the next actionable step. Resume immediately and continue with the next concrete tool call, code change, or an explicit <final> answer only if the task is complete. Do not repeat the earlier plan."
 				}
 				callProgress(args.OnProgressMessage, progress)
-				messages = append(messages, message.ProgressMessage(progress))
+				appendMessage(message.ProgressMessage(progress))
 				pushContinuation(continuation)
 				continue
 			}
@@ -151,26 +162,29 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 				}
 				fallback += diagnosticsSuffix
 				callAssistant(args.OnAssistant, fallback)
-				return append(messages, message.AssistantMessage(fallback)), nil
+				appendMessage(message.AssistantMessage(fallback))
+				return messages, nil
 			}
 
 			callAssistant(args.OnAssistant, content)
-			return append(messages, message.AssistantMessage(content)), nil
+			appendMessage(message.AssistantMessage(content))
+			return messages, nil
 
 		case message.StepToolCalls:
 			if next.Content != "" && looksLikeClarifyingQuestion(next.Content) {
 				callAssistant(args.OnAssistant, next.Content)
-				return append(messages, message.AssistantMessage(next.Content)), nil
+				appendMessage(message.AssistantMessage(next.Content))
+				return messages, nil
 			}
 
 			if next.Content != "" {
 				if next.ContentKind == message.ContentProgress {
 					callProgress(args.OnProgressMessage, next.Content)
-					messages = append(messages, message.ProgressMessage(next.Content))
+					appendMessage(message.ProgressMessage(next.Content))
 					pushContinuation("Continue immediately from your <progress> update with concrete tool calls, code changes, or an explicit <final> answer only if the task is complete.")
 				} else {
 					callAssistant(args.OnAssistant, next.Content)
-					messages = append(messages, message.AssistantMessage(next.Content))
+					appendMessage(message.AssistantMessage(next.Content))
 				}
 			}
 
@@ -194,7 +208,7 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 					toolErrors++
 				}
 				callToolResult(args.OnToolResult, call.ToolName, result.Output, !result.OK)
-				messages = append(messages,
+				appendMessage(
 					message.AssistantToolCallMessage(call),
 					message.ToolResultMessage(call.ID, call.ToolName, result.Output, !result.OK),
 				)
@@ -204,7 +218,8 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 
 	content := "达到最大工具步数限制，已停止当前回合。"
 	callAssistant(args.OnAssistant, content)
-	return append(messages, message.AssistantMessage(content)), nil
+	appendMessage(message.AssistantMessage(content))
+	return messages, nil
 }
 
 func shouldTreatAssistantAsProgress(kind message.ContentKind, content string, sawToolResult bool) bool {
