@@ -79,7 +79,7 @@ func TestRunTurnRecordsModelAndToolEvents(t *testing.T) {
 	}
 
 	got := recorder.types()
-	want := []string{"model.call", "tool.call", "tool.result", "model.call", "turn.end"}
+	want := []string{"context.budget", "model.call", "tool.call", "tool.result", "context.budget", "model.call", "turn.end"}
 	if len(got) != len(want) {
 		t.Fatalf("events = %v, want %v", got, want)
 	}

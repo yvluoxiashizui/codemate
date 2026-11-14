@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/yvluoxiashizui/codemate/internal/message"
+	"github.com/yvluoxiashizui/codemate/internal/token"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
 )
 
@@ -48,6 +49,11 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 	}
 
 	messages := append([]message.Message(nil), args.Messages...)
+
+	var toolsTokens int
+	if args.Tools != nil {
+		toolsTokens = token.EstimateJSON(args.Tools.Schema())
+	}
 	emptyRetries := 0
 	recoverableThinkingRetries := 0
 	sawToolResult := false
@@ -58,6 +64,13 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 	}
 
 	for stepIndex := 0; stepIndex < maxSteps; stepIndex++ {
+		budget := token.NewBudget(token.EstimateMessages(messages), toolsTokens, token.DefaultWindow)
+		record(args.Recorder, "context.budget", map[string]any{
+			"messages_tokens":  budget.Messages,
+			"tools_tokens":     budget.Tools,
+			"total_tokens":     budget.Total,
+			"remaining_tokens": budget.Remaining,
+		})
 		modelStarted := time.Now()
 		next, err := args.Model.Next(ctx, messages)
 		modelCalls++

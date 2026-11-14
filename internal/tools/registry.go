@@ -149,3 +149,16 @@ func normalizeInput(input any) (json.RawMessage, error) {
 	}
 	return bytes, nil
 }
+
+// Schema 返回发送给模型的工具声明，用于上下文预算估算。
+func (r *Registry) Schema() []map[string]any {
+	out := make([]map[string]any, 0, len(r.tools))
+	for _, definition := range r.tools {
+		out = append(out, map[string]any{
+			"name":         definition.Name,
+			"description":  definition.Description,
+			"input_schema": definition.InputSchema,
+		})
+	}
+	return out
+}
