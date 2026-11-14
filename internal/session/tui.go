@@ -217,6 +217,7 @@ func (s *Session) runAgentForTUI(ctx context.Context, state *tuiState, input str
 	messages := append(s.args.Messages, message.UserMessage(input))
 	pendingToolEntries := map[string][]int{}
 	next, err := agent.RunTurn(ctx, agent.Args{
+		Recorder:   s.args.Recorder,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
 		Messages:   messages,

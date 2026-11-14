@@ -9,3 +9,6 @@ bin/
 # 本地配置与密钥
 config/config.toml
 .env
+
+# 运行工件
+.codemate/

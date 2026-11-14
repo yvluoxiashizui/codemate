@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
@@ -20,9 +21,27 @@ type Args struct {
 	OnToolResult      func(toolName string, output string, isError bool)
 	OnAssistant       func(content string)
 	OnProgressMessage func(content string)
+	Recorder          Recorder
 }
 
-func RunTurn(ctx context.Context, args Args) ([]message.Message, error) {
+// Recorder 接收回合内产生的运行事件，允许为 nil。
+type Recorder interface {
+	Event(typ string, data map[string]any)
+}
+
+func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) {
+	turnStarted := time.Now()
+	modelCalls := 0
+	toolCalls := 0
+	defer func() {
+		record(args.Recorder, "turn.end", map[string]any{
+			"duration_ms": time.Since(turnStarted).Milliseconds(),
+			"model_calls": modelCalls,
+			"tool_calls":  toolCalls,
+			"ok":          err == nil,
+		})
+	}()
+
 	maxSteps := args.MaxSteps
 	if maxSteps <= 0 {
 		maxSteps = 80
@@ -39,7 +58,15 @@ func RunTurn(ctx context.Context, args Args) ([]message.Message, error) {
 	}
 
 	for stepIndex := 0; stepIndex < maxSteps; stepIndex++ {
+		modelStarted := time.Now()
 		next, err := args.Model.Next(ctx, messages)
+		modelCalls++
+		record(args.Recorder, "model.call", map[string]any{
+			"step_index":  stepIndex,
+			"duration_ms": time.Since(modelStarted).Milliseconds(),
+			"stop_reason": next.Diagnostics.StopReason,
+			"ok":          err == nil,
+		})
 		if err != nil {
 			return messages, err
 		}
@@ -119,9 +146,18 @@ func RunTurn(ctx context.Context, args Args) ([]message.Message, error) {
 
 			for _, call := range next.Calls {
 				callToolStart(args.OnToolStart, call.ToolName, call.Input)
+				toolStarted := time.Now()
+				record(args.Recorder, "tool.call", map[string]any{"name": call.ToolName})
 				result := args.Tools.Execute(ctx, call.ToolName, call.Input, tools.Context{
 					CWD:        args.CWD,
 					Permission: args.Permission,
+				})
+				toolCalls++
+				record(args.Recorder, "tool.result", map[string]any{
+					"name":         call.ToolName,
+					"ok":           result.OK,
+					"duration_ms":  time.Since(toolStarted).Milliseconds(),
+					"output_bytes": len(result.Output),
 				})
 				sawToolResult = true
 				if !result.OK {
@@ -234,4 +270,11 @@ func callToolResult(fn func(string, string, bool), name, output string, isError 
 	if fn != nil {
 		fn(name, output, isError)
 	}
+}
+
+func record(recorder Recorder, typ string, data map[string]any) {
+	if recorder == nil {
+		return
+	}
+	recorder.Event(typ, data)
 }

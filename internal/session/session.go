@@ -25,6 +25,7 @@ type Args struct {
 	History    History
 	Store      Store
 	SessionID  string
+	Recorder   agent.Recorder
 	In         io.Reader
 	Out        io.Writer
 }
@@ -184,6 +185,7 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 
 	messages := append(s.args.Messages, message.UserMessage(input))
 	next, err := agent.RunTurn(ctx, agent.Args{
+		Recorder:   s.args.Recorder,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
 		Messages:   messages,

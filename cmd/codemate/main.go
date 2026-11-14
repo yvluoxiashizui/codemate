@@ -13,6 +13,7 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/model"
 	"github.com/yvluoxiashizui/codemate/internal/permissions"
 	"github.com/yvluoxiashizui/codemate/internal/prompt"
+	"github.com/yvluoxiashizui/codemate/internal/runs"
 	"github.com/yvluoxiashizui/codemate/internal/session"
 	"github.com/yvluoxiashizui/codemate/internal/skills"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
@@ -73,6 +74,15 @@ func run(ctx context.Context, argv []string) error {
 		}
 	}
 
+	runStore := runs.NewStore(cwd)
+	run, runErr := runStore.Start(map[string]any{"cwd": cwd})
+	if runErr != nil {
+		fmt.Fprintln(os.Stderr, "运行工件目录不可用:", runErr)
+	}
+	defer func() {
+		_ = run.Close("exit")
+	}()
+
 	store := session.Store{Dir: config.SessionsDir()}
 	sessionID := startup.ResumeID
 	messages := []message.Message{message.SystemMessage(systemPrompt)}
@@ -98,6 +108,7 @@ func run(ctx context.Context, argv []string) error {
 		History:    session.History{Path: config.HistoryPath()},
 		Store:      store,
 		SessionID:  sessionID,
+		Recorder:   run,
 	})
 	if isTerminal(os.Stdin) && isTerminal(os.Stdout) {
 		return app.RunTUI(ctx)
