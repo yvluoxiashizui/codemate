@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yvluoxiashizui/codemate/internal/compact"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/token"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
@@ -23,6 +24,7 @@ type Args struct {
 	OnAssistant       func(content string)
 	OnProgressMessage func(content string)
 	Recorder          Recorder
+	Window            int
 }
 
 // Recorder 接收回合内产生的运行事件，允许为 nil。
@@ -50,6 +52,13 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 
 	messages := append([]message.Message(nil), args.Messages...)
 
+	window := args.Window
+	if window <= 0 {
+		window = token.DefaultWindow
+	}
+	keepTokens := compact.KeepTokensFor(window)
+	compactions := 0
+
 	var toolsTokens int
 	if args.Tools != nil {
 		toolsTokens = token.EstimateJSON(args.Tools.Schema())
@@ -64,6 +73,12 @@ func RunTurn(ctx context.Context, args Args) (out []message.Message, err error) 
 	}
 
 	for stepIndex := 0; stepIndex < maxSteps; stepIndex++ {
+		if compactions < compact.MaxPerTurn && compact.Should(token.NewBudget(token.EstimateMessages(messages), toolsTokens, window), keepTokens) {
+			if updated, ok := compactContext(ctx, args, messages, window, keepTokens); ok {
+				messages = updated
+				compactions++
+			}
+		}
 		budget := token.NewBudget(token.EstimateMessages(messages), toolsTokens, token.DefaultWindow)
 		record(args.Recorder, "context.budget", map[string]any{
 			"messages_tokens":  budget.Messages,
@@ -292,4 +307,43 @@ func record(recorder Recorder, typ string, data map[string]any) {
 		return
 	}
 	recorder.Event(typ, data)
+}
+
+// compactContext 请求模型把较早的消息压成摘要，成功时返回新的上下文。
+func compactContext(ctx context.Context, args Args, messages []message.Message, window, keepTokens int) ([]message.Message, bool) {
+	if len(messages) == 0 {
+		return messages, false
+	}
+	system := message.Message{}
+	if messages[0].Role == message.RoleSystem {
+		system = messages[0]
+	}
+	head, tail := compact.Split(messages, keepTokens)
+	if len(head) == 0 {
+		return messages, false
+	}
+
+	before := token.EstimateMessages(messages)
+	step, err := args.Model.Next(ctx, compact.BuildRequest(system, head, window))
+	summary := strings.TrimSpace(step.Content)
+	if err != nil || summary == "" {
+		reason := "empty_summary"
+		if err != nil {
+			reason = err.Error()
+		}
+		record(args.Recorder, "compact.failed", map[string]any{
+			"dropped_messages": len(head),
+			"reason":           reason,
+		})
+		return messages, false
+	}
+
+	updated := compact.Apply(system, summary, tail)
+	record(args.Recorder, "compact.done", map[string]any{
+		"dropped_messages": len(head),
+		"kept_messages":    len(tail),
+		"tokens_before":    before,
+		"tokens_after":     token.EstimateMessages(updated),
+	})
+	return updated, true
 }
