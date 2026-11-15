@@ -18,6 +18,7 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/session"
 	"github.com/yvluoxiashizui/codemate/internal/skills"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
+	"github.com/yvluoxiashizui/codemate/internal/workspace"
 )
 
 func main() {
@@ -85,31 +86,39 @@ func run(ctx context.Context, argv []string) error {
 
 	store := session.Store{Dir: config.SessionsDir()}
 	sessionID := startup.ResumeID
+	fingerprint := workspace.Fingerprint(cwd)
 	var entries []ctxpkg.HistoryEntry
 	if sessionID != "" {
 		record, err := loadSessionRecord(store, sessionID)
 		if err != nil {
 			return err
 		}
-		sessionID = record.ID
-		entries = record.Messages
-	} else {
+		if !session.Resumable(record, fingerprint) {
+			fmt.Fprintln(os.Stderr, "工作区已变化，未恢复会话，改为新建。")
+			sessionID = ""
+		} else {
+			sessionID = record.ID
+			entries = record.Messages
+		}
+	}
+	if sessionID == "" {
 		record := session.NewRecord(cwd, entries)
 		sessionID = record.ID
 	}
 
 	app := session.New(session.Args{
-		CWD:        cwd,
-		Tools:      toolRegistry,
-		Model:      adapter,
-		Runtime:    runtimePtr(runtime, runtimeErr),
-		Entries:    entries,
-		Prefix:     prefix,
-		Permission: pm,
-		History:    session.History{Path: config.HistoryPath()},
-		Store:      store,
-		SessionID:  sessionID,
-		Recorder:   run,
+		CWD:         cwd,
+		Tools:       toolRegistry,
+		Model:       adapter,
+		Runtime:     runtimePtr(runtime, runtimeErr),
+		Entries:     entries,
+		Prefix:      prefix,
+		Fingerprint: fingerprint,
+		Permission:  pm,
+		History:     session.History{Path: config.HistoryPath()},
+		Store:       store,
+		SessionID:   sessionID,
+		Recorder:    run,
 	})
 	if isTerminal(os.Stdin) && isTerminal(os.Stdout) {
 		return app.RunTUI(ctx)

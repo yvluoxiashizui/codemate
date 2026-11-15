@@ -17,19 +17,20 @@ import (
 )
 
 type Args struct {
-	CWD        string
-	Tools      *tools.Registry
-	Model      message.Completer
-	Runtime    *config.Runtime
-	Entries    []ctxpkg.HistoryEntry
-	Prefix     string
-	Permission tools.PermissionManager
-	History    History
-	Store      Store
-	SessionID  string
-	Recorder   agent.Recorder
-	In         io.Reader
-	Out        io.Writer
+	CWD         string
+	Tools       *tools.Registry
+	Model       message.Completer
+	Runtime     *config.Runtime
+	Entries     []ctxpkg.HistoryEntry
+	Prefix      string
+	Fingerprint string
+	Permission  tools.PermissionManager
+	History     History
+	Store       Store
+	SessionID   string
+	Recorder    agent.Recorder
+	In          io.Reader
+	Out         io.Writer
 }
 
 type Session struct {
@@ -222,10 +223,11 @@ func (s *Session) persistMessages() error {
 		return nil
 	}
 	return s.args.Store.Save(Record{
-		Version:  RecordVersion,
-		ID:       s.args.SessionID,
-		CWD:      s.args.CWD,
-		Raw:      s.entries,
-		Messages: s.entries,
+		Version:     RecordVersion,
+		ID:          s.args.SessionID,
+		CWD:         s.args.CWD,
+		Fingerprint: s.args.Fingerprint,
+		Raw:         s.entries,
+		Messages:    s.entries,
 	})
 }

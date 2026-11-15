@@ -28,3 +28,15 @@ func TestLoadMigratesLegacyMessages(t *testing.T) {
 		t.Fatalf("工作上下文未迁移: %#v", record.Messages)
 	}
 }
+
+func TestResumableChecksFingerprint(t *testing.T) {
+	if !Resumable(Record{}, "abc") {
+		t.Fatal("没有指纹的旧存档应可恢复")
+	}
+	if !Resumable(Record{Fingerprint: "abc"}, "abc") {
+		t.Fatal("指纹一致应可恢复")
+	}
+	if Resumable(Record{Fingerprint: "abc"}, "def") {
+		t.Fatal("指纹不一致应拒绝恢复")
+	}
+}

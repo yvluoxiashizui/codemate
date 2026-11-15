@@ -20,13 +20,14 @@ type Store struct {
 const RecordVersion = 2
 
 type Record struct {
-	Version   int                   `json:"version"`
-	ID        string                `json:"id"`
-	CWD       string                `json:"cwd,omitempty"`
-	CreatedAt time.Time             `json:"createdAt"`
-	UpdatedAt time.Time             `json:"updatedAt"`
-	Raw       []ctxpkg.HistoryEntry `json:"raw"`
-	Messages  []ctxpkg.HistoryEntry `json:"working"`
+	Version     int                   `json:"version"`
+	ID          string                `json:"id"`
+	CWD         string                `json:"cwd,omitempty"`
+	CreatedAt   time.Time             `json:"createdAt"`
+	UpdatedAt   time.Time             `json:"updatedAt"`
+	Fingerprint string                `json:"fingerprint,omitempty"`
+	Raw         []ctxpkg.HistoryEntry `json:"raw"`
+	Messages    []ctxpkg.HistoryEntry `json:"working"`
 }
 
 type Summary struct {
@@ -177,4 +178,13 @@ func (s Store) path(id string) (string, error) {
 		return "", fmt.Errorf("invalid session id: %s", id)
 	}
 	return filepath.Join(s.Dir, id+".json"), nil
+}
+
+// Resumable 判断存档能否在当前工作区恢复。
+// 没有记录指纹的旧存档按可恢复处理，指纹不一致时拒绝。
+func Resumable(record Record, fingerprint string) bool {
+	if record.Fingerprint == "" {
+		return true
+	}
+	return record.Fingerprint == fingerprint
 }
