@@ -110,17 +110,22 @@ func clipText(text string, limit int) string {
 }
 
 // firstLine 取首个非空行，并压缩到一行能容纳的长度。
+// firstLine 把多行文本压成一行，超长时保留首尾。
 func firstLine(text string) string {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return ""
-	}
-	if idx := strings.IndexByte(text, '\n'); idx >= 0 {
-		text = strings.TrimSpace(text[:idx])
-	}
-	const limit = 80
+	return middleText(text, 80)
+}
+
+// middleText 压平换行并保留首尾，中间超出的部分用省略号代替。
+// 保留尾部是为了让摘要里还能看到路径、错误码这类关键结尾。
+func middleText(text string, limit int) string {
+	text = strings.Join(strings.Fields(text), " ")
 	if len(text) <= limit {
 		return text
 	}
-	return text[:limit-3] + "..."
+	if limit <= 3 {
+		return text[:limit]
+	}
+	left := (limit - 3) / 2
+	right := limit - 3 - left
+	return text[:left] + "..." + text[len(text)-right:]
 }
