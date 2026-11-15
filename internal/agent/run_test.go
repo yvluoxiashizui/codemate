@@ -63,7 +63,7 @@ func TestRunReturnsFinalAnswer(t *testing.T) {
 	if len(result.History) != 2 {
 		t.Fatalf("历史应记下请求与回答: %#v", result.History)
 	}
-	if _, ok := recorder.find("model.request"); !ok {
+	if _, ok := recorder.find("model_requested"); !ok {
 		t.Fatal("缺少 model.request 事件")
 	}
 }
@@ -89,11 +89,8 @@ func TestRunExecutesToolThenFinishes(t *testing.T) {
 	if result.State.LastTool != "echo" {
 		t.Fatalf("last tool = %s", result.State.LastTool)
 	}
-	if _, ok := recorder.find("tool.call"); !ok {
-		t.Fatal("缺少 tool.call 事件")
-	}
-	if _, ok := recorder.find("tool.result"); !ok {
-		t.Fatal("缺少 tool.result 事件")
+	if _, ok := recorder.find("tool_executed"); !ok {
+		t.Fatal("缺少 tool_executed 事件")
 	}
 	if len(model.prompts) != 2 {
 		t.Fatalf("应请求两次模型: %d", len(model.prompts))
@@ -131,13 +128,15 @@ func TestRunStopsAtRetryLimit(t *testing.T) {
 		"<tool>{bad}</tool>",
 		"<tool>{bad}</tool>",
 		"<tool>{bad}</tool>",
+		"<tool>{bad}</tool>",
+		"<tool>{bad}</tool>",
 	}}
 	result := Run(context.Background(), RunArgs{
-		Model:      model,
-		Tools:      echoRegistry(),
-		Prefix:     "prefix",
-		UserInput:  "一直错",
-		MaxRetries: 3,
+		Model:     model,
+		Tools:     echoRegistry(),
+		Prefix:    "prefix",
+		UserInput: "一直错",
+		MaxSteps:  1,
 	})
 
 	if result.State.Status != StatusStopped || result.State.StopReason != StopRetryLimit {
@@ -147,6 +146,7 @@ func TestRunStopsAtRetryLimit(t *testing.T) {
 
 func TestRunStopsAtStepLimit(t *testing.T) {
 	model := &scriptedCompleter{responses: []string{
+		`<tool>{"name":"echo","args":{}}</tool>`,
 		`<tool>{"name":"echo","args":{}}</tool>`,
 		`<tool>{"name":"echo","args":{}}</tool>`,
 		`<tool>{"name":"echo","args":{}}</tool>`,
@@ -215,5 +215,21 @@ func TestRunRecordsToolPath(t *testing.T) {
 	})
 	if seenPath != "echo" {
 		t.Fatalf("OnTool 未收到工具名: %s", seenPath)
+	}
+}
+
+func TestRunRecordsAttempts(t *testing.T) {
+	model := &scriptedCompleter{responses: []string{
+		`<tool>{"name":"echo","args":{}}</tool>`,
+		"<final>完</final>",
+	}}
+	result := Run(context.Background(), RunArgs{
+		Model:     model,
+		Tools:     echoRegistry(),
+		Prefix:    "prefix",
+		UserInput: "两步",
+	})
+	if result.State.Attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", result.State.Attempts)
 	}
 }
