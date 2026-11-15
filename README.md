@@ -20,6 +20,18 @@
 go build -o bin/codemate ./cmd/codemate
 ```
 
+## 评测
+
+仓库带一套固定任务集，用工作区结果判定，不看模型自述。
+
+```bash
+go run ./cmd/eval -out report.json
+```
+
+每条任务输出一行（通过与否、请求次数、工具步数、prompt 字符数、失败原因），末尾给汇总：通过率、平均请求次数、平均工具步数、平均 prompt 字符数、工具失败率。
+
+`-limit N` 只跑前 N 条；`MINI_CODE_MODEL_MODE=mock` 可以离线跑通链路，但结果全部失败，只用于验证流程。
+
 ## 配置
 
 模型配置放在 `~/.mini-code/settings.json` 或项目内的 `.mini-code/settings.json`，支持 OpenAI 兼容与 Anthropic 兼容两类接口。
