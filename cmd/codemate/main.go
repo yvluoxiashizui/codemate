@@ -53,6 +53,9 @@ func run(ctx context.Context, argv []string) error {
 	toolRegistry = tools.NewRegistry(toolRegistry.List(), tools.Metadata{Skills: discoveredSkills})
 
 	pm, _ := permissions.New(cwd, config.PermissionsPath(), nil)
+	if startup.Approval != "" {
+		pm.SetMode(permissions.Mode(startup.Approval))
+	}
 	systemPrompt := prompt.Build(ctx, prompt.Args{
 		CWD:               cwd,
 		PermissionSummary: pm.Summary(),
@@ -181,6 +184,7 @@ type startupArgs struct {
 	ResumeID       string
 	ReadOnly       bool
 	AllowedTools   []string
+	Approval       string
 	ManagementArgs []string
 }
 
@@ -188,6 +192,17 @@ func parseStartupArgs(argv []string) (startupArgs, error) {
 	out := startupArgs{ManagementArgs: []string{}}
 	for i := 0; i < len(argv); i++ {
 		switch argv[i] {
+		case "--approval":
+			if i+1 >= len(argv) {
+				return startupArgs{}, fmt.Errorf("missing value for --approval")
+			}
+			switch argv[i+1] {
+			case "ask", "auto", "never":
+				out.Approval = argv[i+1]
+				i++
+			default:
+				return startupArgs{}, fmt.Errorf("invalid value for --approval: %s", argv[i+1])
+			}
 		case "--tool":
 			if i+1 >= len(argv) || strings.TrimSpace(argv[i+1]) == "" {
 				return startupArgs{}, fmt.Errorf("missing value for --tool")

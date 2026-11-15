@@ -20,6 +20,18 @@ const (
 	KindEdit    Kind = "edit"
 )
 
+// Mode 是审批策略。
+type Mode string
+
+const (
+	// ModeAsk 每次询问。
+	ModeAsk Mode = "ask"
+	// ModeAuto 自动放行高风险操作，只保留硬性拒绝。
+	ModeAuto Mode = "auto"
+	// ModeNever 拒绝所有需要审批的操作。
+	ModeNever Mode = "never"
+)
+
 type Decision string
 
 const (
@@ -66,6 +78,7 @@ type Manager struct {
 	workspaceRoot          string
 	storePath              string
 	prompt                 Prompt
+	mode                   Mode
 	allowedDirectoryPrefix map[string]bool
 	deniedDirectoryPrefix  map[string]bool
 	sessionAllowedPaths    map[string]bool
@@ -81,6 +94,40 @@ type Manager struct {
 	turnAllowedEdits       map[string]bool
 	turnAllowAllEdits      bool
 }
+
+// SetMode 设置审批策略。
+func (m *Manager) SetMode(mode Mode) {
+	if m == nil {
+		return
+	}
+	if mode == "" {
+		mode = ModeAsk
+	}
+	m.mode = mode
+}
+
+// Mode 返回当前审批策略。
+func (m *Manager) Mode() Mode {
+	if m == nil || m.mode == "" {
+		return ModeAsk
+	}
+	return m.mode
+}
+
+// decide 按审批策略处理需要人工确认的操作。
+// 返回 nil 表示放行，返回错误表示拒绝，返回 errNeedPrompt 表示继续走交互。
+func (m *Manager) decide(subject string) error {
+	switch m.Mode() {
+	case ModeAuto:
+		return nil
+	case ModeNever:
+		return fmt.Errorf("blocked by approval policy: %s", subject)
+	default:
+		return errNeedPrompt
+	}
+}
+
+var errNeedPrompt = fmt.Errorf("need prompt")
 
 func New(workspaceRoot, storePath string, prompt Prompt) (*Manager, error) {
 	root, err := filepath.Abs(workspaceRoot)
@@ -156,6 +203,13 @@ func (m *Manager) EnsurePathAccess(ctx context.Context, targetPath, intent strin
 	if m.sessionAllowedPaths[target] || matchesPrefix(target, m.allowedDirectoryPrefix) {
 		return nil
 	}
+	switch err := m.decide("path access " + target); err {
+	case nil:
+		return nil
+	case errNeedPrompt:
+	default:
+		return err
+	}
 	if m.prompt == nil {
 		return fmt.Errorf("Path %s is outside cwd %s. Start minicode in TTY mode to approve it.", target, m.workspaceRoot)
 	}
@@ -208,6 +262,13 @@ func (m *Manager) EnsureCommand(ctx context.Context, command string, args []stri
 	if m.sessionAllowedCommands[signature] || m.allowedCommands[signature] {
 		return nil
 	}
+	switch err := m.decide("command " + signature); err {
+	case nil:
+		return nil
+	case errNeedPrompt:
+	default:
+		return err
+	}
 	if m.prompt == nil {
 		return fmt.Errorf("Command requires approval: %s. Start minicode in TTY mode to approve it.", signature)
 	}
@@ -251,6 +312,13 @@ func (m *Manager) EnsureEdit(ctx context.Context, targetPath, diffPreview string
 	}
 	if m.sessionAllowedEdits[target] || m.turnAllowedEdits[target] || m.turnAllowAllEdits || m.allowedEdits[target] {
 		return nil
+	}
+	switch err := m.decide("edit " + target); err {
+	case nil:
+		return nil
+	case errNeedPrompt:
+	default:
+		return err
 	}
 	if m.prompt == nil {
 		return fmt.Errorf("Edit requires approval: %s. Start minicode in TTY mode to review it.", target)
