@@ -147,6 +147,7 @@ func run(ctx context.Context, argv []string) error {
 		SessionID:   sessionID,
 		Recorder:    run,
 		State:       run,
+		Report:      run,
 		Memory:      mem,
 		Freshness: func(path string) string {
 			return workspace.Freshness(cwd, path)

@@ -34,6 +34,11 @@ type StateSink interface {
 	SaveState(snapshot map[string]any) error
 }
 
+// ReportSink 接收一次运行的汇总报告，允许为 nil。
+type ReportSink interface {
+	SaveReport(report map[string]any) error
+}
+
 // Recorder 接收运行过程中产生的事件，允许为 nil。
 type Recorder interface {
 	Event(typ string, data map[string]any)
@@ -61,6 +66,7 @@ type RunArgs struct {
 	Memory     *memory.Store
 	Freshness  func(path string) string
 	State      StateSink
+	Report     ReportSink
 	OnTool     func(name string, output string, ok bool)
 }
 
@@ -101,6 +107,8 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 	toolSteps := 0
 	attempts := 0
 	touched := make([]string, 0, 8)
+	toolCalls := make([]map[string]any, 0, 8)
+	runStarted := time.Now()
 	seen := map[string]bool{}
 	flush := func() {
 		if args.State == nil {
@@ -117,6 +125,29 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 		})
 	}
 	flush()
+
+	emitReport := func() {
+		if args.Report == nil {
+			return
+		}
+		failures := 0
+		for _, call := range toolCalls {
+			if ok, _ := call["ok"].(bool); !ok {
+				failures++
+			}
+		}
+		_ = args.Report.SaveReport(map[string]any{
+			"status":        string(state.Status),
+			"stop_reason":   string(state.StopReason),
+			"attempts":      state.Attempts,
+			"tool_steps":    state.ToolSteps,
+			"tool_failures": failures,
+			"tool_calls":    toolCalls,
+			"touched_paths": touched,
+			"duration_ms":   time.Since(runStarted).Milliseconds(),
+			"final_answer":  state.FinalAnswer,
+		})
+	}
 
 	for toolSteps < maxSteps && attempts < maxAttempts {
 		attempts++
@@ -139,6 +170,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			})
 			state.Status = StatusFailed
 			state.StopReason = StopModelError
+			emitReport()
 			return RunResult{State: state, History: history, TouchedPaths: touched}
 		}
 
@@ -167,6 +199,14 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 				ToolName: action.Tool,
 				Path:     pathOf(action.Args),
 				Text:     result.Output,
+			})
+			toolCalls = append(toolCalls, map[string]any{
+				"name":           action.Tool,
+				"ok":             result.OK,
+				"tool_status":    result.Meta.Status,
+				"error_code":     result.Meta.ErrorCode,
+				"risk_level":     string(result.Meta.RiskLevel),
+				"affected_paths": result.Meta.AffectedPaths,
 			})
 			record(args.Recorder, "tool_executed", map[string]any{
 				"name":              action.Tool,
@@ -207,6 +247,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 		case protocol.KindFinal:
 			result := finish(&state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
 			result.TouchedPaths = touched
+			emitReport()
 			return result
 		}
 	}
@@ -226,11 +267,13 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			if action := protocol.Parse(raw); action.Kind == protocol.KindFinal {
 				result := finish(&state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
 				result.TouchedPaths = touched
+				emitReport()
 				return result
 			}
 		} else {
 			state.Status = StatusFailed
 			state.StopReason = StopModelError
+			emitReport()
 			return RunResult{State: state, History: history, TouchedPaths: touched}
 		}
 	}
@@ -238,10 +281,12 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 	if attempts >= maxAttempts && toolSteps < maxSteps {
 		result := finish(&state, history, stopByRetry, args, StatusStopped, StopRetryLimit)
 		result.TouchedPaths = touched
+		emitReport()
 		return result
 	}
 	result := finish(&state, history, stopBySteps, args, StatusStopped, StopStepLimit)
 	result.TouchedPaths = touched
+	emitReport()
 	return result
 }
 

@@ -122,6 +122,23 @@ func (r *Run) SaveState(snapshot map[string]any) error {
 	return os.Rename(tmp, path)
 }
 
+// SaveReport 把本次运行的汇总写进运行目录。
+func (r *Run) SaveReport(report map[string]any) error {
+	if r == nil {
+		return nil
+	}
+	payload, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(r.Dir, "report.json")
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(payload, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
 // ReadEvents 读取一个工件文件里的全部事件。
 func ReadEvents(path string) ([]Event, error) {
 	file, err := os.Open(path)

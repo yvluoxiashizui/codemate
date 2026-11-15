@@ -31,6 +31,7 @@ type Args struct {
 	SessionID      string
 	Recorder       agent.Recorder
 	State          agent.StateSink
+	Report         agent.ReportSink
 	Checkpoint     CheckpointSink
 	CheckpointPath string
 	Memory         *memory.Store
@@ -196,6 +197,7 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 	result := agent.Run(ctx, agent.RunArgs{
 		Recorder:   s.args.Recorder,
 		State:      s.args.State,
+		Report:     s.args.Report,
 		Memory:     s.args.Memory,
 		Freshness:  s.args.Freshness,
 		Model:      s.args.Model,
