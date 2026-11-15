@@ -60,7 +60,7 @@ func run(ctx context.Context, argv []string) error {
 	})
 	prefix := protocol.BuildPrefix(
 		protocol.Workspace{Root: cwd},
-		toolSpecs(toolRegistry),
+		protocol.ToolSpecs(toolRegistry),
 	) + "\n\n" + systemPrompt
 
 	var adapter message.Completer
@@ -217,47 +217,4 @@ func runtimeIdentity(cwd, fingerprint, model string) map[string]any {
 		"model":                 model,
 		"max_steps":             agent.DefaultMaxSteps,
 	}
-}
-
-// toolSpecs 把工具定义转成提示词里需要描述的信息。
-func toolSpecs(registry *tools.Registry) []protocol.ToolSpec {
-	risky := map[string]bool{
-		"write_file":  true,
-		"edit_file":   true,
-		"patch_file":  true,
-		"run_command": true,
-	}
-	definitions := registry.List()
-	specs := make([]protocol.ToolSpec, 0, len(definitions))
-	for _, definition := range definitions {
-		specs = append(specs, protocol.ToolSpec{
-			Name:        definition.Name,
-			Description: definition.Description,
-			Params:      paramsOf(definition.InputSchema),
-			Risky:       risky[definition.Name],
-		})
-	}
-	return specs
-}
-
-// paramsOf 从 JSON Schema 里取出参数名与类型。
-func paramsOf(schema map[string]any) []protocol.Param {
-	if schema == nil {
-		return nil
-	}
-	properties, ok := schema["properties"].(map[string]any)
-	if !ok {
-		return nil
-	}
-	params := make([]protocol.Param, 0, len(properties))
-	for name, raw := range properties {
-		paramType := "string"
-		if field, ok := raw.(map[string]any); ok {
-			if value, ok := field["type"].(string); ok {
-				paramType = value
-			}
-		}
-		params = append(params, protocol.Param{Name: name, Type: paramType})
-	}
-	return params
 }

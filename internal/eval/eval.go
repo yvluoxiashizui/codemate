@@ -9,6 +9,7 @@ import (
 
 	"github.com/yvluoxiashizui/codemate/internal/agent"
 	"github.com/yvluoxiashizui/codemate/internal/message"
+	"github.com/yvluoxiashizui/codemate/internal/protocol"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
 )
 
@@ -76,11 +77,12 @@ func (r Runner) RunCase(ctx context.Context, item Case) Result {
 		}
 	}
 
+	registry := tools.Builtins(root, nil, nil)
 	recorder := &metricsRecorder{}
 	run := agent.Run(ctx, agent.RunArgs{
 		Model:     r.Model,
-		Tools:     tools.Builtins(root, nil, nil),
-		Prefix:    "You are CodeMate, a small local coding agent working inside a local repository.",
+		Tools:     registry,
+		Prefix:    protocol.BuildPrefix(protocol.Workspace{Root: root}, protocol.ToolSpecs(registry)),
 		UserInput: item.Prompt,
 		CWD:       root,
 		MaxSteps:  r.MaxSteps,
