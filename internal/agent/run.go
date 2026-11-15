@@ -205,7 +205,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			})
 
 		case protocol.KindFinal:
-			result := finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
+			result := finish(&state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
 			result.TouchedPaths = touched
 			return result
 		}
@@ -224,7 +224,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 		raw, _, err := requestModel(ctx, args.Recorder, args.Model, prompt)
 		if err == nil {
 			if action := protocol.Parse(raw); action.Kind == protocol.KindFinal {
-				result := finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
+				result := finish(&state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
 				result.TouchedPaths = touched
 				return result
 			}
@@ -236,11 +236,11 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 	}
 
 	if attempts >= maxAttempts && toolSteps < maxSteps {
-		result := finish(state, history, stopByRetry, args, StatusStopped, StopRetryLimit)
+		result := finish(&state, history, stopByRetry, args, StatusStopped, StopRetryLimit)
 		result.TouchedPaths = touched
 		return result
 	}
-	result := finish(state, history, stopBySteps, args, StatusStopped, StopStepLimit)
+	result := finish(&state, history, stopBySteps, args, StatusStopped, StopStepLimit)
 	result.TouchedPaths = touched
 	return result
 }
@@ -280,7 +280,7 @@ func requestModel(ctx context.Context, recorder Recorder, model message.Complete
 	return raw, time.Since(started), err
 }
 
-func finish(state TaskState, history []ctxpkg.HistoryEntry, final string, args RunArgs, status Status, reason StopReason) RunResult {
+func finish(state *TaskState, history []ctxpkg.HistoryEntry, final string, args RunArgs, status Status, reason StopReason) RunResult {
 	state.Status = status
 	state.StopReason = reason
 	state.FinalAnswer = final
@@ -302,7 +302,7 @@ func finish(state TaskState, history []ctxpkg.HistoryEntry, final string, args R
 		"tool_steps":  state.ToolSteps,
 		"attempts":    state.Attempts,
 	})
-	return RunResult{State: state, History: history}
+	return RunResult{State: *state, History: history}
 }
 
 func pathOf(args map[string]any) string {
