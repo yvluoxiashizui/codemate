@@ -38,6 +38,7 @@ func Builtins(cwd string, permission PermissionManager, skillLoader SkillLoader)
 func listFilesTool() Definition {
 	return Definition{
 		Name:        "list_files",
+		Validate:    validateListFiles,
 		Risk:        RiskLow,
 		ReadOnly:    true,
 		Description: "List files in a directory relative to the workspace root.",
@@ -77,6 +78,7 @@ func listFilesTool() Definition {
 func grepFilesTool() Definition {
 	return Definition{
 		Name:        "grep_files",
+		Validate:    validateGrepFiles,
 		Risk:        RiskLow,
 		ReadOnly:    true,
 		Description: "Search for text in files using ripgrep.",
@@ -114,6 +116,7 @@ func grepFilesTool() Definition {
 func readFileTool() Definition {
 	return Definition{
 		Name:        "read_file",
+		Validate:    validateReadFile,
 		Risk:        RiskLow,
 		ReadOnly:    true,
 		Description: "Read a UTF-8 text file relative to the workspace root. Large files can be read in chunks via offset and limit.",
@@ -186,6 +189,7 @@ func reviewedWriteTool(name, description string) Definition {
 		InputSchema: objectSchema(map[string]any{"path": map[string]any{"type": "string"}, "content": map[string]any{"type": "string"}}, []string{"path", "content"}),
 		Risk:        RiskHigh,
 		ReadOnly:    false,
+		Validate:    validateWriteFile,
 		Run: func(ctx context.Context, raw json.RawMessage, tc Context) Result {
 			var input struct {
 				Path    string `json:"path"`
@@ -246,6 +250,7 @@ func editFileTool() Definition {
 func patchFileTool() Definition {
 	return Definition{
 		Name:        "patch_file",
+		Validate:    validatePatchFile,
 		Risk:        RiskHigh,
 		ReadOnly:    false,
 		Description: "Apply multiple exact-text replacements to one file in a single operation.",
@@ -304,6 +309,7 @@ func patchFileTool() Definition {
 func runCommandTool() Definition {
 	return Definition{
 		Name:        "run_command",
+		Validate:    validateRunCommand,
 		Risk:        RiskHigh,
 		ReadOnly:    false,
 		Description: "Run a common development command from an allowlist.",

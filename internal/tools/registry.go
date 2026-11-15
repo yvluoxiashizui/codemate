@@ -51,7 +51,9 @@ type Definition struct {
 	InputSchema map[string]any
 	Risk        RiskLevel
 	ReadOnly    bool
-	Run         func(context.Context, json.RawMessage, Context) Result
+	// Validate 在执行前做语义校验，参数语义不成立时返回错误。
+	Validate func(json.RawMessage, Context) error
+	Run      func(context.Context, json.RawMessage, Context) Result
 }
 
 type SkillSummary struct {
@@ -148,6 +150,11 @@ func (r *Registry) Execute(ctx context.Context, toolName string, input any, tool
 	}
 	if err := validateInputSchema(definition.InputSchema, raw); err != nil {
 		return finishWithError(toolName, meta, affected, CodeInvalidInput, "Invalid input for "+toolName+": "+err.Error())
+	}
+	if definition.Validate != nil {
+		if err := definition.Validate(raw, toolContext); err != nil {
+			return finishWithError(toolName, meta, affected, CodeInvalidInput, "Invalid input for "+toolName+": "+err.Error())
+		}
 	}
 
 	if definition.Run == nil {
