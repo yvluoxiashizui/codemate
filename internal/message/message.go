@@ -131,6 +131,11 @@ func (s Step) WithUsage(usage Usage) Step {
 	return s
 }
 
+// Completer 是文本协议下的模型接口：输入一段 prompt，输出一段文本。
+type Completer interface {
+	Complete(ctx context.Context, prompt string) (string, error)
+}
+
 type Model interface {
 	Next(ctx context.Context, messages []Message) (Step, error)
 }
