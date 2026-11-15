@@ -2,6 +2,11 @@ package message
 
 import "context"
 
+// Completer 是文本协议下的模型接口：输入一段 prompt，输出一段文本。
+type Completer interface {
+	Complete(ctx context.Context, prompt string) (string, error)
+}
+
 type Role string
 
 const (
@@ -91,51 +96,7 @@ type Usage struct {
 	TotalTokens  int `json:"total_tokens"`
 }
 
-// IsZero 报告用量是否为空，用于区分「模型没返回」与「用量为零」。
+// IsZero 报告用量是否为空。
 func (u Usage) IsZero() bool {
 	return u.InputTokens == 0 && u.OutputTokens == 0 && u.TotalTokens == 0
-}
-
-type Step struct {
-	Type        StepType
-	Content     string
-	Kind        ContentKind
-	Calls       []ToolCall
-	ContentKind ContentKind
-	Diagnostics Diagnostics
-	Usage       Usage
-}
-
-func AssistantStep(content string, kind ContentKind, diagnostics Diagnostics) Step {
-	return Step{
-		Type:        StepAssistant,
-		Content:     content,
-		Kind:        kind,
-		Diagnostics: diagnostics,
-	}
-}
-
-func ToolCallsStep(calls []ToolCall, content string, contentKind ContentKind, diagnostics Diagnostics) Step {
-	return Step{
-		Type:        StepToolCalls,
-		Calls:       calls,
-		Content:     content,
-		ContentKind: contentKind,
-		Diagnostics: diagnostics,
-	}
-}
-
-// WithUsage 附带本次调用的 token 用量。
-func (s Step) WithUsage(usage Usage) Step {
-	s.Usage = usage
-	return s
-}
-
-// Completer 是文本协议下的模型接口：输入一段 prompt，输出一段文本。
-type Completer interface {
-	Complete(ctx context.Context, prompt string) (string, error)
-}
-
-type Model interface {
-	Next(ctx context.Context, messages []Message) (Step, error)
 }

@@ -27,6 +27,18 @@ const (
 	stopBySteps = "达到工具步数上限，且没有拿到最终答案，已停止本次任务。"
 )
 
+// Recorder 接收运行过程中产生的事件，允许为 nil。
+type Recorder interface {
+	Event(typ string, data map[string]any)
+}
+
+func record(recorder Recorder, typ string, data map[string]any) {
+	if recorder == nil {
+		return
+	}
+	recorder.Event(typ, data)
+}
+
 // RunArgs 是文本协议下的一次运行入参。
 type RunArgs struct {
 	Model      message.Completer

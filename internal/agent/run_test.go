@@ -11,6 +11,28 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/tools"
 )
 
+type captureRecorder struct {
+	events []capturedEvent
+}
+
+type capturedEvent struct {
+	typ  string
+	data map[string]any
+}
+
+func (c *captureRecorder) Event(typ string, data map[string]any) {
+	c.events = append(c.events, capturedEvent{typ: typ, data: data})
+}
+
+func (c *captureRecorder) find(typ string) (capturedEvent, bool) {
+	for _, event := range c.events {
+		if event.typ == typ {
+			return event, true
+		}
+	}
+	return capturedEvent{}, false
+}
+
 type scriptedCompleter struct {
 	responses []string
 	index     int

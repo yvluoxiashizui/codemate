@@ -62,6 +62,24 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 	return data.Choices[0].Message.Content, nil
 }
 
+// openAIResponse 是 OpenAI 兼容接口的应答片段。
+type openAIResponse struct {
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+}
+
+// contentBlock 是 Anthropic 应答里的内容块。
+type contentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
 // Complete 以单段 prompt 请求 Anthropic 兼容接口，返回纯文本应答。
 func (a *Anthropic) Complete(ctx context.Context, prompt string) (string, error) {
 	runtime, err := a.runtime(ctx)
