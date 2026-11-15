@@ -9,7 +9,6 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/config"
 	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 	"github.com/yvluoxiashizui/codemate/internal/manage"
-	"github.com/yvluoxiashizui/codemate/internal/mcp"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/model"
 	"github.com/yvluoxiashizui/codemate/internal/permissions"
@@ -48,12 +47,7 @@ func run(ctx context.Context, argv []string) error {
 	skillStore := skills.NewStore(cwd, homeDir())
 	discoveredSkills, _ := skillStore.Discover(ctx)
 	toolRegistry := tools.Builtins(cwd, nil, skillStore)
-	mcpResult := mcp.CreateBackedTools(ctx, cwd, runtime.MCPServers)
-	definitions := append(toolRegistry.List(), mcpResult.Tools...)
-	toolRegistry = tools.NewRegistry(definitions, tools.Metadata{Skills: discoveredSkills, MCPServers: mcpResult.Servers}).WithDisposer(mcpResult.Dispose)
-	defer func() {
-		_ = toolRegistry.Dispose(ctx)
-	}()
+	toolRegistry = tools.NewRegistry(toolRegistry.List(), tools.Metadata{Skills: discoveredSkills})
 
 	pm, _ := permissions.New(cwd, config.PermissionsPath(), nil)
 	systemPrompt := prompt.Build(ctx, prompt.Args{
