@@ -17,22 +17,23 @@ import (
 )
 
 type Args struct {
-	CWD         string
-	Tools       *tools.Registry
-	Model       message.Completer
-	Runtime     *config.Runtime
-	Entries     []ctxpkg.HistoryEntry
-	Prefix      string
-	Fingerprint string
-	Permission  tools.PermissionManager
-	History     History
-	Store       Store
-	SessionID   string
-	Recorder    agent.Recorder
-	State       agent.StateSink
-	Checkpoint  CheckpointSink
-	In          io.Reader
-	Out         io.Writer
+	CWD            string
+	Tools          *tools.Registry
+	Model          message.Completer
+	Runtime        *config.Runtime
+	Entries        []ctxpkg.HistoryEntry
+	Prefix         string
+	Fingerprint    string
+	Permission     tools.PermissionManager
+	History        History
+	Store          Store
+	SessionID      string
+	Recorder       agent.Recorder
+	State          agent.StateSink
+	Checkpoint     CheckpointSink
+	CheckpointPath string
+	In             io.Reader
+	Out            io.Writer
 }
 
 type Session struct {
@@ -206,7 +207,9 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 	s.args.Entries = result.History
 	s.entries = result.History
 	if s.args.Checkpoint != nil {
-		s.args.Checkpoint.WriteCheckpoint(result)
+		if path := s.args.Checkpoint.WriteCheckpoint(result); path != "" {
+			s.args.CheckpointPath = path
+		}
 	}
 	if err := s.persistMessages(); err != nil {
 		return err
@@ -229,16 +232,17 @@ func (s *Session) persistMessages() error {
 		return nil
 	}
 	return s.args.Store.Save(Record{
-		Version:     RecordVersion,
-		ID:          s.args.SessionID,
-		CWD:         s.args.CWD,
-		Fingerprint: s.args.Fingerprint,
-		Raw:         s.entries,
-		Messages:    s.entries,
+		Version:        RecordVersion,
+		ID:             s.args.SessionID,
+		CWD:            s.args.CWD,
+		Fingerprint:    s.args.Fingerprint,
+		CheckpointPath: s.args.CheckpointPath,
+		Raw:            s.entries,
+		Messages:       s.entries,
 	})
 }
 
 // CheckpointSink 在每轮结束后接收检查点写入请求。
 type CheckpointSink interface {
-	WriteCheckpoint(result agent.RunResult)
+	WriteCheckpoint(result agent.RunResult) string
 }

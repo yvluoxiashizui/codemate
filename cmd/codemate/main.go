@@ -94,12 +94,24 @@ func run(ctx context.Context, argv []string) error {
 		if err != nil {
 			return err
 		}
+		resumeHint := ""
+		if record.CheckpointPath != "" {
+			if checkpoint, err := runs.LoadCheckpoint(record.CheckpointPath); err == nil {
+				verdict := runs.EvaluateResume(checkpoint, runtimeIdentity(cwd, fingerprint, runtime.Model), func(path string) string {
+					return workspace.Freshness(cwd, path)
+				})
+				resumeHint = runs.ResumeHint(verdict)
+			}
+		}
 		if !session.Resumable(record, fingerprint) {
 			fmt.Fprintln(os.Stderr, "工作区已变化，未恢复会话，改为新建。")
 			sessionID = ""
 		} else {
 			sessionID = record.ID
 			entries = record.Messages
+			if resumeHint != "" {
+				prefix = resumeHint + "\n\n" + prefix
+			}
 		}
 	}
 	if sessionID == "" {
@@ -195,6 +207,16 @@ func runtimePtr(runtime config.Runtime, err error) *config.Runtime {
 func isTerminal(file *os.File) bool {
 	info, err := file.Stat()
 	return err == nil && (info.Mode()&os.ModeCharDevice) != 0
+}
+
+// runtimeIdentity 是一次运行的运行时身份，用于检查点比对。
+func runtimeIdentity(cwd, fingerprint, model string) map[string]any {
+	return map[string]any{
+		"cwd":                   cwd,
+		"workspace_fingerprint": fingerprint,
+		"model":                 model,
+		"max_steps":             agent.DefaultMaxSteps,
+	}
 }
 
 // toolSpecs 把工具定义转成提示词里需要描述的信息。

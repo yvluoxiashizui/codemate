@@ -17,9 +17,10 @@ type checkpointWriter struct {
 	maxSteps    int
 }
 
-func (w checkpointWriter) WriteCheckpoint(result agent.RunResult) {
+// WriteCheckpoint 写入检查点并返回文件路径。
+func (w checkpointWriter) WriteCheckpoint(result agent.RunResult) string {
 	if w.run == nil {
-		return
+		return ""
 	}
 	keyFiles := make([]runs.KeyFile, 0, len(result.TouchedPaths))
 	for _, path := range result.TouchedPaths {
@@ -43,7 +44,7 @@ func (w checkpointWriter) WriteCheckpoint(result agent.RunResult) {
 	}
 	path, err := w.run.SaveCheckpoint(checkpoint)
 	if err != nil {
-		return
+		return ""
 	}
 	w.run.Event("checkpoint_created", map[string]any{
 		"path":        path,
@@ -51,4 +52,5 @@ func (w checkpointWriter) WriteCheckpoint(result agent.RunResult) {
 		"status":      string(result.State.Status),
 		"stop_reason": string(result.State.StopReason),
 	})
+	return path
 }

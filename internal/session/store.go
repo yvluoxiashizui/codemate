@@ -20,14 +20,15 @@ type Store struct {
 const RecordVersion = 2
 
 type Record struct {
-	Version     int                   `json:"version"`
-	ID          string                `json:"id"`
-	CWD         string                `json:"cwd,omitempty"`
-	CreatedAt   time.Time             `json:"createdAt"`
-	UpdatedAt   time.Time             `json:"updatedAt"`
-	Fingerprint string                `json:"fingerprint,omitempty"`
-	Raw         []ctxpkg.HistoryEntry `json:"raw"`
-	Messages    []ctxpkg.HistoryEntry `json:"working"`
+	Version        int                   `json:"version"`
+	ID             string                `json:"id"`
+	CWD            string                `json:"cwd,omitempty"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
+	Fingerprint    string                `json:"fingerprint,omitempty"`
+	CheckpointPath string                `json:"checkpoint_path,omitempty"`
+	Raw            []ctxpkg.HistoryEntry `json:"raw"`
+	Messages       []ctxpkg.HistoryEntry `json:"working"`
 }
 
 type Summary struct {
