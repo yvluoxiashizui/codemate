@@ -20,11 +20,12 @@ const (
 
 // 错误码，用于把失败归类。
 const (
-	CodeUnknownTool  = "unknown_tool"
-	CodeInvalidInput = "invalid_input"
-	CodeToolError    = "tool_error"
-	CodeToolPanic    = "tool_panic"
-	CodeReadOnly     = "read_only_blocked"
+	CodeUnknownTool    = "unknown_tool"
+	CodeInvalidInput   = "invalid_input"
+	CodeToolError      = "tool_error"
+	CodeToolPanic      = "tool_panic"
+	CodeReadOnly       = "read_only_blocked"
+	CodeToolNotAllowed = "tool_not_allowed"
 )
 
 // Meta 是一次工具执行的元数据。

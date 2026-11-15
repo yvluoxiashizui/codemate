@@ -147,6 +147,7 @@ func run(ctx context.Context, argv []string) error {
 		SessionID:   sessionID,
 		Recorder:    run,
 		ReadOnly:    startup.ReadOnly,
+		Allowed:     startup.AllowedTools,
 		State:       run,
 		Report:      run,
 		Memory:      mem,
@@ -179,6 +180,7 @@ func run(ctx context.Context, argv []string) error {
 type startupArgs struct {
 	ResumeID       string
 	ReadOnly       bool
+	AllowedTools   []string
 	ManagementArgs []string
 }
 
@@ -186,6 +188,12 @@ func parseStartupArgs(argv []string) (startupArgs, error) {
 	out := startupArgs{ManagementArgs: []string{}}
 	for i := 0; i < len(argv); i++ {
 		switch argv[i] {
+		case "--tool":
+			if i+1 >= len(argv) || strings.TrimSpace(argv[i+1]) == "" {
+				return startupArgs{}, fmt.Errorf("missing value for --tool")
+			}
+			out.AllowedTools = append(out.AllowedTools, argv[i+1])
+			i++
 		case "--read-only":
 			out.ReadOnly = true
 		case "--resume":

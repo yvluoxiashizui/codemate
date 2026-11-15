@@ -30,6 +30,21 @@ type PermissionManager interface {
 type Policy struct {
 	// ReadOnly 为真时只允许执行只读工具。
 	ReadOnly bool
+	// Allowed 非空时只允许执行列出的工具。
+	Allowed []string
+}
+
+// Permits 判断工具名是否在本次运行允许的范围内。
+func (p Policy) Permits(name string) bool {
+	if p.Allowed == nil {
+		return true
+	}
+	for _, item := range p.Allowed {
+		if item == name {
+			return true
+		}
+	}
+	return false
 }
 
 type Context struct {
@@ -139,6 +154,13 @@ func (r *Registry) Execute(ctx context.Context, toolName string, input any, tool
 		}
 	}
 
+	if !toolContext.Policy.Permits(toolName) {
+		return Result{
+			OK:     false,
+			Output: "Tool " + toolName + " is not allowed in this run",
+			Meta:   Meta{Status: StatusReject, ErrorCode: CodeToolNotAllowed, RiskLevel: RiskHigh},
+		}
+	}
 	if toolContext.Policy.ReadOnly && !definition.ReadOnly {
 		return Result{
 			OK:     false,

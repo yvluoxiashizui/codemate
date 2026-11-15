@@ -62,6 +62,7 @@ type RunArgs struct {
 	Permission tools.PermissionManager
 	MaxSteps   int
 	ReadOnly   bool
+	Allowed    []string
 	Options    ctxpkg.Options
 	Recorder   Recorder
 	Memory     *memory.Store
@@ -194,7 +195,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			result := args.Tools.Execute(ctx, action.Tool, action.Args, tools.Context{
 				CWD:        args.CWD,
 				Permission: args.Permission,
-				Policy:     tools.Policy{ReadOnly: args.ReadOnly},
+				Policy:     tools.Policy{ReadOnly: args.ReadOnly, Allowed: args.Allowed},
 			})
 			history = append(history, ctxpkg.HistoryEntry{
 				Role:     ctxpkg.RoleTool,
