@@ -27,6 +27,11 @@ const (
 	stopBySteps = "达到工具步数上限，且没有拿到最终答案，已停止本次任务。"
 )
 
+// StateSink 把任务状态快照写进运行目录，允许为 nil。
+type StateSink interface {
+	SaveState(snapshot map[string]any) error
+}
+
 // Recorder 接收运行过程中产生的事件，允许为 nil。
 type Recorder interface {
 	Event(typ string, data map[string]any)
@@ -51,6 +56,7 @@ type RunArgs struct {
 	MaxSteps   int
 	Options    ctxpkg.Options
 	Recorder   Recorder
+	State      StateSink
 	OnTool     func(name string, output string, ok bool)
 }
 
@@ -84,10 +90,26 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 
 	toolSteps := 0
 	attempts := 0
+	flush := func() {
+		if args.State == nil {
+			return
+		}
+		_ = args.State.SaveState(map[string]any{
+			"user_request": state.UserRequest,
+			"status":       string(state.Status),
+			"attempts":     state.Attempts,
+			"tool_steps":   state.ToolSteps,
+			"last_tool":    state.LastTool,
+			"stop_reason":  string(state.StopReason),
+			"final_answer": state.FinalAnswer,
+		})
+	}
+	flush()
 
 	for toolSteps < maxSteps && attempts < maxAttempts {
 		attempts++
 		state.Attempts = attempts
+		flush()
 
 		prompt, meta := buildPrompt(args, history)
 		record(args.Recorder, "prompt_built", map[string]any{
@@ -140,6 +162,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 				"duration_ms":  time.Since(started).Milliseconds(),
 				"output_chars": len(result.Output),
 			})
+			flush()
 			if args.OnTool != nil {
 				args.OnTool(action.Tool, result.Output, result.OK)
 			}
@@ -214,6 +237,17 @@ func finish(state TaskState, history []ctxpkg.HistoryEntry, final string, args R
 	state.Status = status
 	state.StopReason = reason
 	state.FinalAnswer = final
+	if args.State != nil {
+		_ = args.State.SaveState(map[string]any{
+			"user_request": state.UserRequest,
+			"status":       string(state.Status),
+			"attempts":     state.Attempts,
+			"tool_steps":   state.ToolSteps,
+			"last_tool":    state.LastTool,
+			"stop_reason":  string(state.StopReason),
+			"final_answer": state.FinalAnswer,
+		})
+	}
 	history = append(history, ctxpkg.HistoryEntry{Role: ctxpkg.RoleAssistant, Text: final})
 	record(args.Recorder, "run_finished", map[string]any{
 		"status":      string(state.Status),

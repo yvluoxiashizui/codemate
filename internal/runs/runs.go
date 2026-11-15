@@ -105,6 +105,23 @@ func (r *Run) Close(reason string) error {
 	return err
 }
 
+// SaveState 把任务状态快照写进运行目录。每次都覆盖，保留最新一份。
+func (r *Run) SaveState(snapshot map[string]any) error {
+	if r == nil {
+		return nil
+	}
+	payload, err := json.MarshalIndent(snapshot, "", "  ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(r.Dir, "task_state.json")
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(payload, '\n'), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
 // ReadEvents 读取一个工件文件里的全部事件。
 func ReadEvents(path string) ([]Event, error) {
 	file, err := os.Open(path)

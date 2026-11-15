@@ -29,6 +29,7 @@ type Args struct {
 	Store       Store
 	SessionID   string
 	Recorder    agent.Recorder
+	State       agent.StateSink
 	In          io.Reader
 	Out         io.Writer
 }
@@ -189,6 +190,7 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 
 	result := agent.Run(ctx, agent.RunArgs{
 		Recorder:   s.args.Recorder,
+		State:      s.args.State,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
 		Prefix:     s.args.Prefix,

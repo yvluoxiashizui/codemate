@@ -119,6 +119,7 @@ func run(ctx context.Context, argv []string) error {
 		Store:       store,
 		SessionID:   sessionID,
 		Recorder:    run,
+		State:       run,
 	})
 	if isTerminal(os.Stdin) && isTerminal(os.Stdout) {
 		return app.RunTUI(ctx)
