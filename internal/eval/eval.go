@@ -11,6 +11,7 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/protocol"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
+	"github.com/yvluoxiashizui/codemate/internal/workspace"
 )
 
 // Case 是一个评测任务：给定初始仓库与请求，用判定函数检查结果。
@@ -78,11 +79,18 @@ func (r Runner) RunCase(ctx context.Context, item Case) Result {
 	}
 
 	registry := tools.Builtins(root, nil, nil)
+	wsContext := workspace.BuildContext(root)
 	recorder := &metricsRecorder{}
 	run := agent.Run(ctx, agent.RunArgs{
-		Model:     r.Model,
-		Tools:     registry,
-		Prefix:    protocol.BuildPrefix(protocol.Workspace{Root: root}, protocol.ToolSpecs(registry)),
+		Model: r.Model,
+		Tools: registry,
+		Prefix: protocol.BuildPrefix(protocol.Workspace{
+			Root:          wsContext.Root,
+			Branch:        wsContext.Branch,
+			Dirty:         wsContext.Dirty,
+			RecentCommits: wsContext.RecentCommits,
+			ProjectDocs:   wsContext.ProjectDocs,
+		}, protocol.ToolSpecs(registry)),
 		UserInput: item.Prompt,
 		CWD:       root,
 		MaxSteps:  r.MaxSteps,

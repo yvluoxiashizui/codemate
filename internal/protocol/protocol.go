@@ -231,8 +231,13 @@ type Param struct {
 
 // Workspace 是拼进前缀的仓库信息。
 type Workspace struct {
-	Root  string
-	Files []string
+	Root          string
+	Files         []string
+	Branch        string
+	Dirty         bool
+	TrackedFiles  int
+	RecentCommits []string
+	ProjectDocs   []string
 }
 
 // SortTools 按名称排序，保证提示词前缀稳定。
@@ -280,6 +285,19 @@ func BuildPrefix(workspace Workspace, tools []ToolSpec) string {
 
 	builder.WriteString("\nWorkspace:\n")
 	builder.WriteString("root: " + workspace.Root + "\n")
+	if workspace.Branch != "" {
+		state := "clean"
+		if workspace.Dirty {
+			state = "has uncommitted changes"
+		}
+		builder.WriteString("git branch: " + workspace.Branch + " (" + state + ")\n")
+	}
+	for _, commit := range workspace.RecentCommits {
+		builder.WriteString("recent commit: " + commit + "\n")
+	}
+	if len(workspace.ProjectDocs) > 0 {
+		builder.WriteString("project docs: " + strings.Join(workspace.ProjectDocs, ", ") + "\n")
+	}
 	if len(workspace.Files) > 0 {
 		builder.WriteString("top-level entries: " + strings.Join(workspace.Files, ", ") + "\n")
 	}

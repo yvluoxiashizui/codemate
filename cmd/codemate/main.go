@@ -59,8 +59,16 @@ func run(ctx context.Context, argv []string) error {
 		Skills:            discoveredSkills,
 		MCPServers:        toolRegistry.MCPServers(),
 	})
+	wsContext := workspace.BuildContext(cwd)
 	prefix := protocol.BuildPrefix(
-		protocol.Workspace{Root: cwd},
+		protocol.Workspace{
+			Root:          wsContext.Root,
+			Branch:        wsContext.Branch,
+			Dirty:         wsContext.Dirty,
+			TrackedFiles:  wsContext.TrackedFiles,
+			RecentCommits: wsContext.RecentCommits,
+			ProjectDocs:   wsContext.ProjectDocs,
+		},
 		protocol.ToolSpecs(toolRegistry),
 	) + "\n\n" + systemPrompt
 
