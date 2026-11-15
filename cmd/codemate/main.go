@@ -10,6 +10,7 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/config"
 	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 	"github.com/yvluoxiashizui/codemate/internal/manage"
+	"github.com/yvluoxiashizui/codemate/internal/memory"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/model"
 	"github.com/yvluoxiashizui/codemate/internal/permissions"
@@ -85,6 +86,11 @@ func run(ctx context.Context, argv []string) error {
 		_ = run.Close("exit")
 	}()
 
+	mem, memErr := memory.Open(cwd)
+	if memErr != nil {
+		fmt.Fprintln(os.Stderr, "记忆文件不可用:", memErr)
+	}
+
 	store := session.Store{Dir: config.SessionsDir()}
 	sessionID := startup.ResumeID
 	fingerprint := workspace.Fingerprint(cwd)
@@ -133,6 +139,10 @@ func run(ctx context.Context, argv []string) error {
 		SessionID:   sessionID,
 		Recorder:    run,
 		State:       run,
+		Memory:      mem,
+		Freshness: func(path string) string {
+			return workspace.Freshness(cwd, path)
+		},
 		Checkpoint: checkpointWriter{
 			run:         run,
 			cwd:         cwd,

@@ -12,6 +12,7 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/commands"
 	"github.com/yvluoxiashizui/codemate/internal/config"
 	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
+	"github.com/yvluoxiashizui/codemate/internal/memory"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
 )
@@ -32,6 +33,8 @@ type Args struct {
 	State          agent.StateSink
 	Checkpoint     CheckpointSink
 	CheckpointPath string
+	Memory         *memory.Store
+	Freshness      func(path string) string
 	In             io.Reader
 	Out            io.Writer
 }
@@ -193,6 +196,8 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 	result := agent.Run(ctx, agent.RunArgs{
 		Recorder:   s.args.Recorder,
 		State:      s.args.State,
+		Memory:     s.args.Memory,
+		Freshness:  s.args.Freshness,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
 		Prefix:     s.args.Prefix,
@@ -210,6 +215,9 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 		if path := s.args.Checkpoint.WriteCheckpoint(result); path != "" {
 			s.args.CheckpointPath = path
 		}
+	}
+	if s.args.Memory != nil {
+		_ = s.args.Memory.Save()
 	}
 	if err := s.persistMessages(); err != nil {
 		return err

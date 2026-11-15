@@ -2,9 +2,11 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
+	"github.com/yvluoxiashizui/codemate/internal/memory"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/protocol"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
@@ -56,6 +58,8 @@ type RunArgs struct {
 	MaxSteps   int
 	Options    ctxpkg.Options
 	Recorder   Recorder
+	Memory     *memory.Store
+	Freshness  func(path string) string
 	State      StateSink
 	OnTool     func(name string, output string, ok bool)
 }
@@ -83,6 +87,10 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 		Status:      StatusRunning,
 		UserRequest: args.UserInput,
 	}
+	if args.Memory != nil {
+		args.Memory.SetTaskSummary(args.UserInput)
+	}
+
 	history := append(append([]ctxpkg.HistoryEntry(nil), args.History...),
 		ctxpkg.HistoryEntry{Role: ctxpkg.RoleUser, Text: args.UserInput})
 
@@ -167,9 +175,18 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 				"output_chars": len(result.Output),
 			})
 			flush()
-			if path := pathOf(action.Args); path != "" && !seen[path] {
-				seen[path] = true
-				touched = append(touched, path)
+			if path := pathOf(action.Args); path != "" {
+				if !seen[path] {
+					seen[path] = true
+					touched = append(touched, path)
+				}
+				if args.Memory != nil {
+					freshness := ""
+					if args.Freshness != nil {
+						freshness = args.Freshness(path)
+					}
+					args.Memory.RememberFile(path, summarizeOutput(result.Output), freshness)
+				}
 			}
 			if args.OnTool != nil {
 				args.OnTool(action.Tool, result.Output, result.OK)
@@ -229,8 +246,16 @@ type promptMeta struct {
 }
 
 func buildPrompt(args RunArgs, history []ctxpkg.HistoryEntry) (string, promptMeta) {
+	memoryText := ""
+	relevantText := ""
+	if args.Memory != nil {
+		memoryText = args.Memory.Render()
+		relevantText = memory.RenderNotes(args.Memory.Retrieval(args.UserInput, 3))
+	}
 	built := ctxpkg.Build(ctxpkg.Sections{
 		Prefix:         args.Prefix,
+		Memory:         memoryText,
+		Relevant:       relevantText,
 		History:        ctxpkg.RenderHistory(history, 0),
 		CurrentRequest: args.UserInput,
 	}, args.Options)
@@ -283,4 +308,20 @@ func pathOf(args map[string]any) string {
 		return ""
 	}
 	return value
+}
+
+// summarizeOutput 把工具输出压成一句话摘要，供记忆层保存。
+func summarizeOutput(output string) string {
+	text := strings.TrimSpace(output)
+	if text == "" {
+		return ""
+	}
+	if idx := strings.IndexByte(text, 10); idx >= 0 {
+		text = strings.TrimSpace(text[:idx])
+	}
+	const limit = 120
+	if len(text) <= limit {
+		return text
+	}
+	return text[:limit] + "…"
 }
