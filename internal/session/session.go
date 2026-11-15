@@ -30,6 +30,7 @@ type Args struct {
 	SessionID   string
 	Recorder    agent.Recorder
 	State       agent.StateSink
+	Checkpoint  CheckpointSink
 	In          io.Reader
 	Out         io.Writer
 }
@@ -204,6 +205,9 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 	})
 	s.args.Entries = result.History
 	s.entries = result.History
+	if s.args.Checkpoint != nil {
+		s.args.Checkpoint.WriteCheckpoint(result)
+	}
 	if err := s.persistMessages(); err != nil {
 		return err
 	}
@@ -232,4 +236,9 @@ func (s *Session) persistMessages() error {
 		Raw:         s.entries,
 		Messages:    s.entries,
 	})
+}
+
+// CheckpointSink 在每轮结束后接收检查点写入请求。
+type CheckpointSink interface {
+	WriteCheckpoint(result agent.RunResult)
 }

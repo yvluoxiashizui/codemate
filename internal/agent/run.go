@@ -61,9 +61,11 @@ type RunArgs struct {
 }
 
 // RunResult 是一次运行的结果。
+// TouchedPaths 是本次运行中工具访问过的文件路径，按出现顺序去重。
 type RunResult struct {
-	State   TaskState
-	History []ctxpkg.HistoryEntry
+	State        TaskState
+	History      []ctxpkg.HistoryEntry
+	TouchedPaths []string
 }
 
 // Run 推进一次任务，循环结构分四段：感知、决策、行动、记录。
@@ -90,6 +92,8 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 
 	toolSteps := 0
 	attempts := 0
+	touched := make([]string, 0, 8)
+	seen := map[string]bool{}
 	flush := func() {
 		if args.State == nil {
 			return
@@ -127,7 +131,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			})
 			state.Status = StatusFailed
 			state.StopReason = StopModelError
-			return RunResult{State: state, History: history}
+			return RunResult{State: state, History: history, TouchedPaths: touched}
 		}
 
 		action := protocol.Parse(raw)
@@ -163,6 +167,10 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 				"output_chars": len(result.Output),
 			})
 			flush()
+			if path := pathOf(action.Args); path != "" && !seen[path] {
+				seen[path] = true
+				touched = append(touched, path)
+			}
 			if args.OnTool != nil {
 				args.OnTool(action.Tool, result.Output, result.OK)
 			}
@@ -174,7 +182,9 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			})
 
 		case protocol.KindFinal:
-			return finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
+			result := finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
+			result.TouchedPaths = touched
+			return result
 		}
 	}
 
@@ -191,19 +201,25 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 		raw, _, err := requestModel(ctx, args.Recorder, args.Model, prompt)
 		if err == nil {
 			if action := protocol.Parse(raw); action.Kind == protocol.KindFinal {
-				return finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
+				result := finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
+				result.TouchedPaths = touched
+				return result
 			}
 		} else {
 			state.Status = StatusFailed
 			state.StopReason = StopModelError
-			return RunResult{State: state, History: history}
+			return RunResult{State: state, History: history, TouchedPaths: touched}
 		}
 	}
 
 	if attempts >= maxAttempts && toolSteps < maxSteps {
-		return finish(state, history, stopByRetry, args, StatusStopped, StopRetryLimit)
+		result := finish(state, history, stopByRetry, args, StatusStopped, StopRetryLimit)
+		result.TouchedPaths = touched
+		return result
 	}
-	return finish(state, history, stopBySteps, args, StatusStopped, StopStepLimit)
+	result := finish(state, history, stopBySteps, args, StatusStopped, StopStepLimit)
+	result.TouchedPaths = touched
+	return result
 }
 
 // promptMeta 是一次拼装的附带信息。

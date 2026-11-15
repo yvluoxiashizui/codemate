@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/yvluoxiashizui/codemate/internal/agent"
 	"github.com/yvluoxiashizui/codemate/internal/config"
 	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 	"github.com/yvluoxiashizui/codemate/internal/manage"
@@ -120,6 +121,13 @@ func run(ctx context.Context, argv []string) error {
 		SessionID:   sessionID,
 		Recorder:    run,
 		State:       run,
+		Checkpoint: checkpointWriter{
+			run:         run,
+			cwd:         cwd,
+			model:       runtime.Model,
+			fingerprint: fingerprint,
+			maxSteps:    agent.DefaultMaxSteps,
+		},
 	})
 	if isTerminal(os.Stdin) && isTerminal(os.Stdout) {
 		return app.RunTUI(ctx)

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -40,4 +41,18 @@ func gitHead(root string) string {
 		return content
 	}
 	return strings.TrimSpace(string(refPayload))
+}
+
+// Freshness 返回文件的修改时间与大小指纹，用于判断检查点里的文件是否被改过。
+// 文件不存在时返回 "missing"。
+func Freshness(root, path string) string {
+	target := path
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(root, path)
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		return "missing"
+	}
+	return strconv.FormatInt(info.ModTime().UnixNano(), 10) + ":" + strconv.FormatInt(info.Size(), 10)
 }
