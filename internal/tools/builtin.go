@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/yvluoxiashizui/codemate/internal/filereview"
+	"github.com/yvluoxiashizui/codemate/internal/security"
 	"github.com/yvluoxiashizui/codemate/internal/workspace"
 )
 
@@ -352,6 +353,7 @@ func runCommandTool() Definition {
 			defer cancel()
 			cmd := exec.CommandContext(cmdCtx, command, args...)
 			cmd.Dir = effectiveCWD
+			cmd.Env = security.ShellEnv(nil, nil)
 			var output bytes.Buffer
 			cmd.Stdout = &output
 			cmd.Stderr = &output
