@@ -31,7 +31,7 @@ func (r *Run) SaveCheckpoint(checkpoint Checkpoint) (string, error) {
 	if checkpoint.SchemaVersion == "" {
 		checkpoint.SchemaVersion = CheckpointSchemaVersion
 	}
-	payload, err := json.MarshalIndent(checkpoint, "", "  ")
+	payload, err := redactedJSON(checkpoint)
 	if err != nil {
 		return "", err
 	}

@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+
 	"fmt"
+	"github.com/yvluoxiashizui/codemate/internal/security"
 	"os"
 	"path/filepath"
 	"sync"
@@ -70,6 +72,7 @@ func (r *Run) Event(typ string, data map[string]any) {
 		return
 	}
 	r.seq++
+	data = security.RedactValue(data, nil).(map[string]any)
 	payload, err := json.Marshal(Event{
 		Seq:  r.seq,
 		TS:   time.Now().UTC().Format(time.RFC3339Nano),
@@ -105,12 +108,21 @@ func (r *Run) Close(reason string) error {
 	return err
 }
 
+// redactedJSON 序列化并打码，用于所有落盘工件。
+func redactedJSON(value any) ([]byte, error) {
+	payload, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return []byte(security.Redact(string(payload), nil)), nil
+}
+
 // SaveState 把任务状态快照写进运行目录。每次都覆盖，保留最新一份。
 func (r *Run) SaveState(snapshot map[string]any) error {
 	if r == nil {
 		return nil
 	}
-	payload, err := json.MarshalIndent(snapshot, "", "  ")
+	payload, err := redactedJSON(snapshot)
 	if err != nil {
 		return err
 	}
@@ -127,7 +139,7 @@ func (r *Run) SaveReport(report map[string]any) error {
 	if r == nil {
 		return nil
 	}
-	payload, err := json.MarshalIndent(report, "", "  ")
+	payload, err := redactedJSON(report)
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,9 @@ package session
 
 import (
 	"encoding/json"
+
 	"fmt"
+	"github.com/yvluoxiashizui/codemate/internal/security"
 	"os"
 	"path/filepath"
 	"sort"
@@ -71,6 +73,7 @@ func (s Store) Save(record Record) error {
 	if err != nil {
 		return err
 	}
+	bytes = []byte(security.Redact(string(bytes), nil))
 	return os.WriteFile(path, append(bytes, '\n'), 0o644)
 }
 

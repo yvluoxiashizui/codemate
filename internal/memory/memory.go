@@ -2,6 +2,8 @@ package memory
 
 import (
 	"encoding/json"
+
+	"github.com/yvluoxiashizui/codemate/internal/security"
 	"os"
 	"path/filepath"
 	"sort"
@@ -82,7 +84,8 @@ func (s *Store) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, append(payload, '\n'), 0o600)
+	redacted := security.Redact(string(payload), nil)
+	return os.WriteFile(s.path, []byte(redacted+"\n"), 0o600)
 }
 
 // State 返回记忆快照。
