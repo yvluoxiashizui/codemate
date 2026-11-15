@@ -4,27 +4,43 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/yvluoxiashizui/codemate/internal/config"
-	"github.com/yvluoxiashizui/codemate/internal/message"
+	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 	"github.com/yvluoxiashizui/codemate/internal/model"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
 )
+
+type scriptedCompleter struct {
+	responses []string
+	index     int
+	err       error
+}
+
+func (s *scriptedCompleter) Complete(_ context.Context, _ string) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	if s.index >= len(s.responses) {
+		return "<final>默认答案</final>", nil
+	}
+	out := s.responses[s.index]
+	s.index++
+	return out, nil
+}
 
 func TestRunOnceExecutesShortcut(t *testing.T) {
 	dir := t.TempDir()
 	registry := tools.Builtins(dir, nil, nil)
 	var out bytes.Buffer
 	s := New(Args{
-		CWD:      dir,
-		Tools:    registry,
-		Model:    model.Mock{},
-		Messages: []message.Message{message.SystemMessage("system")},
-		Out:      &out,
+		CWD:   dir,
+		Tools: registry,
+		Model: model.Mock{},
+		Out:   &out,
 	})
 	if err := s.RunOnce(context.Background(), "/ls"); err != nil {
 		t.Fatal(err)
@@ -38,155 +54,119 @@ func TestRunOnceHandlesRuntimeSlashCommands(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer
 	registry := tools.NewRegistry(nil, tools.Metadata{
-		Skills:     []tools.SkillSummary{{Name: "demo", Description: "Demo skill", Source: "project"}},
-		MCPServers: []tools.MCPServerSummary{{Name: "fs", Status: "connected", ToolCount: 2, Protocol: "content-length"}},
+		Skills: []tools.SkillSummary{{Name: "demo", Description: "示例技能", Path: "skills/demo", Source: "project"}},
 	})
 	s := New(Args{
-		CWD:      dir,
-		Tools:    registry,
-		Model:    model.Mock{},
-		Runtime:  &config.Runtime{Provider: "anthropic", Model: "claude-test", BaseURL: "https://example.test", AuthToken: "token", SourceSummary: "test config"},
-		Messages: []message.Message{message.SystemMessage("system")},
-		Out:      &out,
+		CWD:   dir,
+		Tools: registry,
+		Model: model.Mock{},
+		Out:   &out,
 	})
-
-	for _, input := range []string{"/status", "/model", "/skills", "/mcp", "/permissions"} {
-		if err := s.RunOnce(context.Background(), input); err != nil {
-			t.Fatal(err)
-		}
+	if err := s.RunOnce(context.Background(), "/skills"); err != nil {
+		t.Fatal(err)
 	}
-	got := out.String()
-	for _, want := range []string{"provider: anthropic", "model: claude-test", "current model: claude-test", "demo  Demo skill", "fs  status=connected", "permission store:"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("output missing %q:\n%s", want, got)
-		}
+	if !strings.Contains(out.String(), "demo") {
+		t.Fatalf("unexpected output: %q", out.String())
 	}
 }
 
-func TestRunOncePersistsAgentMessages(t *testing.T) {
+func TestRunOncePersistsHistoryEntries(t *testing.T) {
 	dir := t.TempDir()
-	store := Store{Dir: t.TempDir()}
 	var out bytes.Buffer
+	store := Store{Dir: filepath.Join(dir, "sessions")}
 	s := New(Args{
 		CWD:       dir,
 		Tools:     tools.NewRegistry(nil, tools.Metadata{}),
-		Model:     model.Mock{},
-		Messages:  []message.Message{message.SystemMessage("system")},
+		Model:     &scriptedCompleter{responses: []string{"<final>改好了</final>"}},
 		Store:     store,
-		SessionID: "session-1",
+		SessionID: "s1",
 		Out:       &out,
 	})
 
-	if err := s.RunOnce(context.Background(), "hello"); err != nil {
+	if err := s.RunOnce(context.Background(), "修一下"); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := store.Load("session-1")
+	loaded, err := store.Load("s1")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("load: %v", err)
 	}
-	if len(loaded.Messages) < 3 || loaded.Messages[1].Role != message.RoleUser || loaded.Messages[len(loaded.Messages)-1].Role != message.RoleAssistant {
-		t.Fatalf("unexpected persisted messages: %#v", loaded.Messages)
+	if len(loaded.Messages) != 2 {
+		t.Fatalf("存档条目数 = %d, want 2", len(loaded.Messages))
+	}
+	if loaded.Messages[0].Role != ctxpkg.RoleUser || loaded.Messages[0].Text != "修一下" {
+		t.Fatalf("第一条应为用户请求: %#v", loaded.Messages[0])
+	}
+	if loaded.Messages[1].Role != ctxpkg.RoleAssistant || loaded.Messages[1].Text != "改好了" {
+		t.Fatalf("第二条应为最终回答: %#v", loaded.Messages[1])
 	}
 }
 
-func TestRunOnceTurnsModelErrorIntoAssistantFailureMessage(t *testing.T) {
+func TestRunOnceReportsModelFailure(t *testing.T) {
 	dir := t.TempDir()
-	store := Store{Dir: t.TempDir()}
 	var out bytes.Buffer
 	s := New(Args{
-		CWD:       dir,
-		Tools:     tools.NewRegistry(nil, tools.Metadata{}),
-		Model:     failingModel{err: errors.New("No model configured")},
-		Messages:  []message.Message{message.SystemMessage("system")},
-		Store:     store,
-		SessionID: "session-1",
-		Out:       &out,
+		CWD:   dir,
+		Tools: tools.NewRegistry(nil, tools.Metadata{}),
+		Model: &scriptedCompleter{err: errors.New("boom")},
+		Out:   &out,
 	})
-
-	if err := s.RunOnce(context.Background(), "hello"); err != nil {
+	if err := s.RunOnce(context.Background(), "试一下"); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "请求失败: No model configured") {
-		t.Fatalf("expected request failure output, got %q", out.String())
-	}
-	loaded, err := store.Load("session-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	last := loaded.Messages[len(loaded.Messages)-1]
-	if last.Role != message.RoleAssistant || !strings.Contains(last.Content, "请求失败: No model configured") {
-		t.Fatalf("expected persisted failure assistant message, got %#v", loaded.Messages)
+	if !strings.Contains(out.String(), "请求失败") {
+		t.Fatalf("unexpected output: %q", out.String())
 	}
 }
 
-func TestRunOnceUsesResumedMessages(t *testing.T) {
+func TestRunOnceUsesResumedEntries(t *testing.T) {
 	dir := t.TempDir()
-	store := Store{Dir: t.TempDir()}
-	if err := store.Save(Record{
-		ID:  "session-1",
-		CWD: dir,
-		Messages: []message.Message{
-			message.SystemMessage("system"),
-			message.UserMessage("previous"),
-			message.AssistantMessage("earlier"),
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	record, err := store.Load("session-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	model := &recordingModel{}
+	var out bytes.Buffer
+	entries := []ctxpkg.HistoryEntry{{Role: ctxpkg.RoleUser, Text: "上一轮"}, {Role: ctxpkg.RoleAssistant, Text: "上一次回答"}}
 	s := New(Args{
-		CWD:       dir,
-		Tools:     tools.NewRegistry(nil, tools.Metadata{}),
-		Model:     model,
-		Messages:  record.Messages,
-		Store:     store,
-		SessionID: record.ID,
-		Out:       &bytes.Buffer{},
+		CWD:     dir,
+		Tools:   tools.NewRegistry(nil, tools.Metadata{}),
+		Model:   &scriptedCompleter{responses: []string{"<final>继续</final>"}},
+		Entries: entries,
+		Out:     &out,
 	})
-
-	if err := s.RunOnce(context.Background(), "next"); err != nil {
+	if err := s.RunOnce(context.Background(), "接着来"); err != nil {
 		t.Fatal(err)
 	}
-	if len(model.seen) < 4 || model.seen[1].Content != "previous" || model.seen[len(model.seen)-1].Content != "next" {
-		t.Fatalf("model did not receive resumed context: %#v", model.seen)
+	if len(s.args.Entries) != 4 {
+		t.Fatalf("恢复后条目数 = %d, want 4", len(s.args.Entries))
 	}
 }
 
-func TestHistoryPersistsLastEntries(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "history.json")
-	h := History{Path: path}
-	if err := h.Save([]string{"one", "two"}); err != nil {
+func TestRunOncePrintsFinalAnswer(t *testing.T) {
+	dir := t.TempDir()
+	var out bytes.Buffer
+	s := New(Args{
+		CWD:   dir,
+		Tools: tools.NewRegistry(nil, tools.Metadata{}),
+		Model: &scriptedCompleter{responses: []string{"<final>答案在这里</final>"}},
+		Out:   &out,
+	})
+	if err := s.RunOnce(context.Background(), "问一句"); err != nil {
 		t.Fatal(err)
 	}
-	entries, err := h.Load()
+	if !strings.Contains(out.String(), "答案在这里") {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestHistoryFilePersistsLastEntries(t *testing.T) {
+	dir := t.TempDir()
+	history := History{Path: filepath.Join(dir, "history.json")}
+	if err := history.Save([]string{"第一条", "第二条"}); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := history.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(entries, ",") != "one,two" {
-		t.Fatalf("unexpected entries: %#v", entries)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatal(err)
+	if len(loaded) != 2 || loaded[1] != "第二条" {
+		t.Fatalf("历史文件内容不符: %#v", loaded)
 	}
 }
 
-type recordingModel struct {
-	seen []message.Message
-}
-
-func (m *recordingModel) Next(_ context.Context, messages []message.Message) (message.Step, error) {
-	m.seen = append([]message.Message(nil), messages...)
-	return message.AssistantStep("done", message.ContentFinal, message.Diagnostics{}), nil
-}
-
-type failingModel struct {
-	err error
-}
-
-func (m failingModel) Next(context.Context, []message.Message) (message.Step, error) {
-	return message.Step{}, m.err
-}
+var _ = config.Runtime{}

@@ -10,7 +10,7 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/tools"
 )
 
-func NewFromRuntime(runtime config.Runtime, registry *tools.Registry) (message.Model, error) {
+func NewFromRuntime(runtime config.Runtime, registry *tools.Registry) (message.Completer, error) {
 	provider := strings.ToLower(strings.TrimSpace(runtime.Provider))
 	if provider == "" {
 		provider = "anthropic"

@@ -7,12 +7,14 @@ import (
 	"strings"
 
 	"github.com/yvluoxiashizui/codemate/internal/config"
+	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 	"github.com/yvluoxiashizui/codemate/internal/manage"
 	"github.com/yvluoxiashizui/codemate/internal/mcp"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/model"
 	"github.com/yvluoxiashizui/codemate/internal/permissions"
 	"github.com/yvluoxiashizui/codemate/internal/prompt"
+	"github.com/yvluoxiashizui/codemate/internal/protocol"
 	"github.com/yvluoxiashizui/codemate/internal/runs"
 	"github.com/yvluoxiashizui/codemate/internal/session"
 	"github.com/yvluoxiashizui/codemate/internal/skills"
@@ -60,8 +62,12 @@ func run(ctx context.Context, argv []string) error {
 		Skills:            discoveredSkills,
 		MCPServers:        toolRegistry.MCPServers(),
 	})
+	prefix := protocol.BuildPrefix(
+		protocol.Workspace{Root: cwd},
+		toolSpecs(toolRegistry),
+	) + "\n\n" + systemPrompt
 
-	var adapter message.Model
+	var adapter message.Completer
 	mockMode := os.Getenv("MINI_CODE_MODEL_MODE") == "mock"
 	if mockMode {
 		adapter = model.Mock{}
@@ -85,18 +91,16 @@ func run(ctx context.Context, argv []string) error {
 
 	store := session.Store{Dir: config.SessionsDir()}
 	sessionID := startup.ResumeID
-	messages := []message.Message{message.SystemMessage(systemPrompt)}
-	var rawMessages []message.Message
+	var entries []ctxpkg.HistoryEntry
 	if sessionID != "" {
 		record, err := loadSessionRecord(store, sessionID)
 		if err != nil {
 			return err
 		}
 		sessionID = record.ID
-		messages = record.Messages
-		rawMessages = record.Raw
+		entries = record.Messages
 	} else {
-		record := session.NewRecord(cwd, messages)
+		record := session.NewRecord(cwd, entries)
 		sessionID = record.ID
 	}
 
@@ -105,8 +109,8 @@ func run(ctx context.Context, argv []string) error {
 		Tools:      toolRegistry,
 		Model:      adapter,
 		Runtime:    runtimePtr(runtime, runtimeErr),
-		Messages:   messages,
-		Raw:        rawMessages,
+		Entries:    entries,
+		Prefix:     prefix,
 		Permission: pm,
 		History:    session.History{Path: config.HistoryPath()},
 		Store:      store,
@@ -179,4 +183,47 @@ func runtimePtr(runtime config.Runtime, err error) *config.Runtime {
 func isTerminal(file *os.File) bool {
 	info, err := file.Stat()
 	return err == nil && (info.Mode()&os.ModeCharDevice) != 0
+}
+
+// toolSpecs 把工具定义转成提示词里需要描述的信息。
+func toolSpecs(registry *tools.Registry) []protocol.ToolSpec {
+	risky := map[string]bool{
+		"write_file":  true,
+		"edit_file":   true,
+		"patch_file":  true,
+		"run_command": true,
+	}
+	definitions := registry.List()
+	specs := make([]protocol.ToolSpec, 0, len(definitions))
+	for _, definition := range definitions {
+		specs = append(specs, protocol.ToolSpec{
+			Name:        definition.Name,
+			Description: definition.Description,
+			Params:      paramsOf(definition.InputSchema),
+			Risky:       risky[definition.Name],
+		})
+	}
+	return specs
+}
+
+// paramsOf 从 JSON Schema 里取出参数名与类型。
+func paramsOf(schema map[string]any) []protocol.Param {
+	if schema == nil {
+		return nil
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	params := make([]protocol.Param, 0, len(properties))
+	for name, raw := range properties {
+		paramType := "string"
+		if field, ok := raw.(map[string]any); ok {
+			if value, ok := field["type"].(string); ok {
+				paramType = value
+			}
+		}
+		params = append(params, protocol.Param{Name: name, Type: paramType})
+	}
+	return params
 }

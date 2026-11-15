@@ -11,7 +11,6 @@ import (
 
 	"github.com/yvluoxiashizui/codemate/internal/agent"
 	"github.com/yvluoxiashizui/codemate/internal/commands"
-	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/permissions"
 	"github.com/yvluoxiashizui/codemate/internal/tui"
 )
@@ -214,36 +213,25 @@ func (s *Session) handleTUIEvent(ctx context.Context, state *tuiState, event tui
 }
 
 func (s *Session) runAgentForTUI(ctx context.Context, state *tuiState, input string) error {
-	messages := append(s.args.Messages, message.UserMessage(input))
-	added := []message.Message{message.UserMessage(input)}
 	pendingToolEntries := map[string][]int{}
-	next, err := agent.RunTurn(ctx, agent.Args{
+	result := agent.Run(ctx, agent.RunArgs{
 		Recorder:   s.args.Recorder,
-		AddedOut:   &added,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
-		Messages:   messages,
+		Prefix:     s.args.Prefix,
+		History:    s.args.Entries,
+		UserInput:  input,
 		CWD:        s.args.CWD,
 		Permission: s.args.Permission,
-		OnProgressMessage: func(content string) {
-			state.transcript = append(state.transcript, transcriptEntry{kind: "progress", body: content})
-		},
-		OnToolStart: func(name string, input any) {
-			index := appendToolStart(state, name, input)
-			pendingToolEntries[name] = append(pendingToolEntries[name], index)
-		},
-		OnToolResult: func(name, output string, isError bool) {
-			finishToolResult(state, pendingToolEntries, name, output, isError)
-		},
-		OnAssistant: func(content string) {
-			state.transcript = append(state.transcript, transcriptEntry{kind: "assistant", body: content})
+		OnTool: func(name, output string, ok bool) {
+			finishToolResult(state, pendingToolEntries, name, output, !ok)
 		},
 	})
-	if err != nil {
-		return err
+	s.args.Entries = result.History
+	s.entries = result.History
+	if result.State.FinalAnswer != "" {
+		state.transcript = append(state.transcript, transcriptEntry{kind: "assistant", body: result.State.FinalAnswer})
 	}
-	s.args.Messages = next
-	s.raw = append(s.raw, added...)
 	return s.persistMessages()
 }
 
@@ -297,7 +285,7 @@ func (s *Session) renderHeaderBody(eventCount int) string {
 		"Terminal coding assistant with a card-style session layout.",
 		"",
 		s.args.CWD,
-		fmt.Sprintf("[session] local  [model] %s  [messages] %d  [events] %d  [skills] %d  [mcp] %d", model, len(s.args.Messages), eventCount, len(s.args.Tools.Skills()), len(s.args.Tools.MCPServers())),
+		fmt.Sprintf("[session] local  [model] %s  [messages] %d  [events] %d  [skills] %d  [mcp] %d", model, len(s.args.Entries), eventCount, len(s.args.Tools.Skills()), len(s.args.Tools.MCPServers())),
 	}, "\n")
 }
 

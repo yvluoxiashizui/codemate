@@ -85,8 +85,12 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			"attempt":       attempts,
 		})
 
-		raw, err := requestModel(ctx, args.Recorder, args.Model, prompt)
+		raw, elapsed, err := requestModel(ctx, args.Recorder, args.Model, prompt)
 		if err != nil {
+			record(args.Recorder, "model_parsed", map[string]any{
+				"duration_ms": elapsed.Milliseconds(),
+				"ok":          false,
+			})
 			state.Status = StatusFailed
 			state.StopReason = StopModelError
 			return RunResult{State: state, History: history}
@@ -94,8 +98,11 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 
 		action := protocol.Parse(raw)
 		record(args.Recorder, "model_parsed", map[string]any{
-			"kind": string(action.Kind),
-			"tool": action.Tool,
+			"kind":        string(action.Kind),
+			"tool":        action.Tool,
+			"chars":       len(raw),
+			"duration_ms": elapsed.Milliseconds(),
+			"ok":          true,
 		})
 
 		switch action.Kind {
@@ -146,7 +153,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			"reductions":    meta.Reductions,
 			"purpose":       "finalization",
 		})
-		raw, err := requestModel(ctx, args.Recorder, args.Model, prompt)
+		raw, _, err := requestModel(ctx, args.Recorder, args.Model, prompt)
 		if err == nil {
 			if action := protocol.Parse(raw); action.Kind == protocol.KindFinal {
 				return finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
@@ -182,18 +189,13 @@ func buildPrompt(args RunArgs, history []ctxpkg.HistoryEntry) (string, promptMet
 	}
 }
 
-func requestModel(ctx context.Context, recorder Recorder, model message.Completer, prompt string) (string, error) {
+func requestModel(ctx context.Context, recorder Recorder, model message.Completer, prompt string) (string, time.Duration, error) {
 	record(recorder, "model_requested", map[string]any{
 		"prompt_chars": len(prompt),
 	})
 	started := time.Now()
 	raw, err := model.Complete(ctx, prompt)
-	record(recorder, "model_parsed", map[string]any{
-		"duration_ms": time.Since(started).Milliseconds(),
-		"chars":       len(raw),
-		"ok":          err == nil,
-	})
-	return raw, err
+	return raw, time.Since(started), err
 }
 
 func finish(state TaskState, history []ctxpkg.HistoryEntry, final string, args RunArgs, status Status, reason StopReason) RunResult {

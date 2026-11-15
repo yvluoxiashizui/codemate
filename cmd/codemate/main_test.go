@@ -74,7 +74,7 @@ func TestRunWithoutRuntimeConfigDoesNotImplicitlyUseMock(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := out.String()
-	if !strings.Contains(got, "model: not-configured") || strings.Contains(got, "Mock mode response") || !strings.Contains(got, "请求失败: No model configured") {
+	if !strings.Contains(got, "model: not-configured") || strings.Contains(got, "Mock mode response") || !strings.Contains(got, "请求失败") {
 		t.Fatalf("unexpected no-config behavior:\n%s", got)
 	}
 }

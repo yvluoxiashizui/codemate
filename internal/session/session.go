@@ -11,6 +11,7 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/agent"
 	"github.com/yvluoxiashizui/codemate/internal/commands"
 	"github.com/yvluoxiashizui/codemate/internal/config"
+	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
 )
@@ -18,10 +19,10 @@ import (
 type Args struct {
 	CWD        string
 	Tools      *tools.Registry
-	Model      message.Model
+	Model      message.Completer
 	Runtime    *config.Runtime
-	Messages   []message.Message
-	Raw        []message.Message
+	Entries    []ctxpkg.HistoryEntry
+	Prefix     string
 	Permission tools.PermissionManager
 	History    History
 	Store      Store
@@ -32,8 +33,8 @@ type Args struct {
 }
 
 type Session struct {
-	args Args
-	raw  []message.Message
+	args    Args
+	entries []ctxpkg.HistoryEntry
 }
 
 func New(args Args) *Session {
@@ -43,11 +44,7 @@ func New(args Args) *Session {
 	if args.Out == nil {
 		args.Out = os.Stdout
 	}
-	raw := args.Raw
-	if len(raw) == 0 {
-		raw = args.Messages
-	}
-	return &Session{args: args, raw: append([]message.Message(nil), raw...)}
+	return &Session{args: args, entries: append([]ctxpkg.HistoryEntry(nil), args.Entries...)}
 }
 
 func (s *Session) Run(ctx context.Context) error {
@@ -189,41 +186,32 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 		return nil
 	}
 
-	messages := append(s.args.Messages, message.UserMessage(input))
-	added := []message.Message{message.UserMessage(input)}
-	next, err := agent.RunTurn(ctx, agent.Args{
+	result := agent.Run(ctx, agent.RunArgs{
 		Recorder:   s.args.Recorder,
-		AddedOut:   &added,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
-		Messages:   messages,
+		Prefix:     s.args.Prefix,
+		History:    s.args.Entries,
+		UserInput:  input,
 		CWD:        s.args.CWD,
 		Permission: s.args.Permission,
-		OnProgressMessage: func(content string) {
-			fmt.Fprintln(s.args.Out, "progress: "+content)
-		},
-		OnToolStart: func(name string, _ any) {
+		OnTool: func(name, output string, ok bool) {
 			fmt.Fprintln(s.args.Out, "tool: "+name)
 		},
 	})
-	if err != nil {
-		content := "请求失败: " + err.Error()
-		s.args.Messages = append(messages, message.AssistantMessage(content))
-		if persistErr := s.persistMessages(); persistErr != nil {
-			return persistErr
-		}
-		fmt.Fprintln(s.args.Out, content)
-		return nil
-	}
-	s.args.Messages = next
-	s.raw = append(s.raw, added...)
+	s.args.Entries = result.History
+	s.entries = result.History
 	if err := s.persistMessages(); err != nil {
 		return err
 	}
-	for i := len(next) - 1; i >= 0; i-- {
-		if next[i].Role == message.RoleAssistant {
-			fmt.Fprintln(s.args.Out, next[i].Content)
-			break
+	switch result.State.Status {
+	case agent.StatusFailed:
+		fmt.Fprintln(s.args.Out, "请求失败，已停止本次任务。")
+	case agent.StatusStopped:
+		fmt.Fprintln(s.args.Out, result.State.FinalAnswer)
+	default:
+		if result.State.FinalAnswer != "" {
+			fmt.Fprintln(s.args.Out, result.State.FinalAnswer)
 		}
 	}
 	return nil
@@ -237,7 +225,7 @@ func (s *Session) persistMessages() error {
 		Version:  RecordVersion,
 		ID:       s.args.SessionID,
 		CWD:      s.args.CWD,
-		Raw:      s.raw,
-		Messages: s.args.Messages,
+		Raw:      s.entries,
+		Messages: s.entries,
 	})
 }

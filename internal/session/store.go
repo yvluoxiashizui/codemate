@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yvluoxiashizui/codemate/internal/message"
+	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 )
 
 type Store struct {
@@ -20,13 +20,13 @@ type Store struct {
 const RecordVersion = 2
 
 type Record struct {
-	Version   int               `json:"version"`
-	ID        string            `json:"id"`
-	CWD       string            `json:"cwd,omitempty"`
-	CreatedAt time.Time         `json:"createdAt"`
-	UpdatedAt time.Time         `json:"updatedAt"`
-	Raw       []message.Message `json:"raw"`
-	Messages  []message.Message `json:"working"`
+	Version   int                   `json:"version"`
+	ID        string                `json:"id"`
+	CWD       string                `json:"cwd,omitempty"`
+	CreatedAt time.Time             `json:"createdAt"`
+	UpdatedAt time.Time             `json:"updatedAt"`
+	Raw       []ctxpkg.HistoryEntry `json:"raw"`
+	Messages  []ctxpkg.HistoryEntry `json:"working"`
 }
 
 type Summary struct {
@@ -36,7 +36,7 @@ type Summary struct {
 	MessageCount int
 }
 
-func NewRecord(cwd string, messages []message.Message) Record {
+func NewRecord(cwd string, entries []ctxpkg.HistoryEntry) Record {
 	now := time.Now().UTC()
 	return Record{
 		Version:   RecordVersion,
@@ -44,8 +44,8 @@ func NewRecord(cwd string, messages []message.Message) Record {
 		CWD:       cwd,
 		CreatedAt: now,
 		UpdatedAt: now,
-		Raw:       append([]message.Message(nil), messages...),
-		Messages:  append([]message.Message(nil), messages...),
+		Raw:       append([]ctxpkg.HistoryEntry(nil), entries...),
+		Messages:  append([]ctxpkg.HistoryEntry(nil), entries...),
 	}
 }
 
@@ -90,14 +90,20 @@ func (s Store) Load(id string) (Record, error) {
 
 // recordPayload 是存档的磁盘表示，保留 v1 的 messages 字段用于迁移。
 type recordPayload struct {
-	Version   int               `json:"version"`
-	ID        string            `json:"id"`
-	CWD       string            `json:"cwd,omitempty"`
-	CreatedAt time.Time         `json:"createdAt"`
-	UpdatedAt time.Time         `json:"updatedAt"`
-	Raw       []message.Message `json:"raw"`
-	Messages  []message.Message `json:"working"`
-	Legacy    []message.Message `json:"messages"`
+	Version   int                   `json:"version"`
+	ID        string                `json:"id"`
+	CWD       string                `json:"cwd,omitempty"`
+	CreatedAt time.Time             `json:"createdAt"`
+	UpdatedAt time.Time             `json:"updatedAt"`
+	Raw       []ctxpkg.HistoryEntry `json:"raw"`
+	Messages  []ctxpkg.HistoryEntry `json:"working"`
+	Legacy    []legacyMessage       `json:"messages"`
+}
+
+// legacyMessage 是 v1 存档里的消息形态，只用于迁移。
+type legacyMessage struct {
+	Role    string `json:"Role"`
+	Content string `json:"Content"`
 }
 
 func (p recordPayload) toRecord() Record {
@@ -112,7 +118,9 @@ func (p recordPayload) toRecord() Record {
 	}
 	if record.Version < RecordVersion {
 		if len(record.Raw) == 0 {
-			record.Raw = p.Legacy
+			for _, item := range p.Legacy {
+				record.Raw = append(record.Raw, ctxpkg.HistoryEntry{Role: item.Role, Text: item.Content})
+			}
 		}
 		if len(record.Messages) == 0 {
 			record.Messages = record.Raw

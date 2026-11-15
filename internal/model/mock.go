@@ -22,3 +22,8 @@ func (Mock) Next(_ context.Context, messages []message.Message) (message.Step, e
 	}
 	return message.AssistantStep("Mock mode response. Ask me to inspect README.md to see tool use.", message.ContentFinal, message.Diagnostics{}), nil
 }
+
+// Complete 返回一段固定的最终答案，用于离线模式。
+func (m Mock) Complete(_ context.Context, prompt string) (string, error) {
+	return "<final>mock 模式：未接入模型。</final>", nil
+}

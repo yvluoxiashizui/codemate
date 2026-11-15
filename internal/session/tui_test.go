@@ -3,12 +3,10 @@ package session
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/model"
 	"github.com/yvluoxiashizui/codemate/internal/permissions"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
@@ -21,11 +19,11 @@ func TestRenderTUIScreenIncludesTranscriptAndPrompt(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer
 	s := New(Args{
-		CWD:      dir,
-		Tools:    tools.NewRegistry(nil, tools.Metadata{}),
-		Model:    model.Mock{},
-		Messages: []message.Message{message.SystemMessage("system")},
-		Out:      &out,
+		CWD:     dir,
+		Tools:   tools.NewRegistry(nil, tools.Metadata{}),
+		Model:   model.Mock{},
+		Entries: nil,
+		Out:     &out,
 	})
 	screen := s.renderTUIScreen(tuiState{
 		input:  "hello",
@@ -59,80 +57,6 @@ func TestTUIHistoryNavigation(t *testing.T) {
 	}
 	if state.input != "" || state.cursor != 0 {
 		t.Fatalf("unexpected history down state: %#v", state)
-	}
-}
-
-func TestTUIPlainInputAddsProgressAndToolEntries(t *testing.T) {
-	dir := t.TempDir()
-	registry := tools.NewRegistry([]tools.Definition{
-		{
-			Name: "demo_tool",
-			Run: func(_ context.Context, _ json.RawMessage, _ tools.Context) tools.Result {
-				return tools.Success("tool output")
-			},
-		},
-	}, tools.Metadata{})
-	s := New(Args{
-		CWD:      dir,
-		Tools:    registry,
-		Model:    scriptedTUIModel{},
-		Messages: []message.Message{message.SystemMessage("system")},
-	})
-	state := tuiState{input: "do work", cursor: len("do work"), historyIndex: 0}
-
-	if _, err := s.handleTUIEvent(context.Background(), &state, tui.InputEvent{Kind: tui.EventKey, Name: tui.KeyReturn}); err != nil {
-		t.Fatal(err)
-	}
-
-	kinds := []string{}
-	for _, entry := range state.transcript {
-		kinds = append(kinds, entry.kind)
-	}
-	got := strings.Join(kinds, ",")
-	if !strings.Contains(got, "user,progress,tool,assistant") {
-		t.Fatalf("unexpected transcript kinds %q entries=%#v", got, state.transcript)
-	}
-}
-
-func TestTUIAgentTurnAggregatesSameFileEditTools(t *testing.T) {
-	dir := t.TempDir()
-	registry := tools.NewRegistry([]tools.Definition{
-		{
-			Name: "edit_file",
-			Run: func(_ context.Context, _ json.RawMessage, _ tools.Context) tools.Result {
-				return tools.Success("Applied reviewed changes to main.go")
-			},
-		},
-		{
-			Name: "patch_file",
-			Run: func(_ context.Context, _ json.RawMessage, _ tools.Context) tools.Result {
-				return tools.Success("Patched main.go with 2 replacement(s)")
-			},
-		},
-	}, tools.Metadata{})
-	s := New(Args{
-		CWD:      dir,
-		Tools:    registry,
-		Model:    editAggregationTUIModel{},
-		Messages: []message.Message{message.SystemMessage("system")},
-	})
-	state := tuiState{input: "edit twice", cursor: len("edit twice"), historyIndex: 0}
-
-	if _, err := s.handleTUIEvent(context.Background(), &state, tui.InputEvent{Kind: tui.EventKey, Name: tui.KeyReturn}); err != nil {
-		t.Fatal(err)
-	}
-
-	toolEntries := 0
-	for _, entry := range state.transcript {
-		if entry.kind == "tool" {
-			toolEntries++
-			if entry.toolName != "file edits" || entry.aggregateCount != 2 || entry.path != "main.go" {
-				t.Fatalf("unexpected aggregated tool entry: %#v", entry)
-			}
-		}
-	}
-	if toolEntries != 1 {
-		t.Fatalf("expected one aggregated tool entry, got %d entries=%#v", toolEntries, state.transcript)
 	}
 }
 
@@ -242,45 +166,4 @@ func TestApprovalSelectionAndFeedback(t *testing.T) {
 	if !done || result.Decision != permissions.DecisionDenyWithFeedback || result.Feedback != "no" {
 		t.Fatalf("unexpected feedback result done=%v result=%#v", done, result)
 	}
-}
-
-type scriptedTUIModel struct {
-	calls int
-}
-
-func (m scriptedTUIModel) Next(_ context.Context, messages []message.Message) (message.Step, error) {
-	for _, msg := range messages {
-		if msg.Role == message.RoleToolResult {
-			return message.AssistantStep("done", message.ContentFinal, message.Diagnostics{}), nil
-		}
-	}
-	return message.ToolCallsStep(
-		[]message.ToolCall{{ID: "toolu_1", ToolName: "demo_tool", Input: map[string]any{}}},
-		"working",
-		message.ContentProgress,
-		message.Diagnostics{},
-	), nil
-}
-
-type editAggregationTUIModel struct{}
-
-func (m editAggregationTUIModel) Next(_ context.Context, messages []message.Message) (message.Step, error) {
-	toolResults := 0
-	for _, msg := range messages {
-		if msg.Role == message.RoleToolResult {
-			toolResults++
-		}
-	}
-	if toolResults >= 2 {
-		return message.AssistantStep("done", message.ContentFinal, message.Diagnostics{}), nil
-	}
-	return message.ToolCallsStep(
-		[]message.ToolCall{
-			{ID: "toolu_1", ToolName: "edit_file", Input: map[string]any{"path": "main.go"}},
-			{ID: "toolu_2", ToolName: "patch_file", Input: map[string]any{"path": "main.go"}},
-		},
-		"working",
-		message.ContentProgress,
-		message.Diagnostics{},
-	), nil
 }

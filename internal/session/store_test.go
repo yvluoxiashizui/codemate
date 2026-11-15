@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/yvluoxiashizui/codemate/internal/message"
+	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 )
 
 func TestStoreSaveLoadAndListSessions(t *testing.T) {
@@ -12,10 +12,10 @@ func TestStoreSaveLoadAndListSessions(t *testing.T) {
 	record := Record{
 		ID:  "session-1",
 		CWD: "/tmp/project",
-		Messages: []message.Message{
-			message.SystemMessage("system"),
-			message.UserMessage("hello"),
-			message.AssistantMessage("world"),
+		Messages: []ctxpkg.HistoryEntry{
+			{Role: ctxpkg.RoleUser, Text: "hello"},
+			{Role: ctxpkg.RoleAssistant, Text: "world"},
+			{Role: ctxpkg.RoleUser, Text: "again"},
 		},
 	}
 
@@ -41,10 +41,10 @@ func TestStoreSaveLoadAndListSessions(t *testing.T) {
 
 func TestStoreLatestReturnsMostRecentlyUpdated(t *testing.T) {
 	store := Store{Dir: t.TempDir()}
-	if err := store.Save(Record{ID: "old", Messages: []message.Message{message.UserMessage("old")}}); err != nil {
+	if err := store.Save(Record{ID: "old", Messages: []ctxpkg.HistoryEntry{{Role: ctxpkg.RoleUser, Text: "old"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Save(Record{ID: "new", Messages: []message.Message{message.UserMessage("new")}}); err != nil {
+	if err := store.Save(Record{ID: "new", Messages: []ctxpkg.HistoryEntry{{Role: ctxpkg.RoleUser, Text: "new"}}}); err != nil {
 		t.Fatal(err)
 	}
 
