@@ -146,6 +146,7 @@ func run(ctx context.Context, argv []string) error {
 		Store:       store,
 		SessionID:   sessionID,
 		Recorder:    run,
+		ReadOnly:    startup.ReadOnly,
 		State:       run,
 		Report:      run,
 		Memory:      mem,
@@ -177,6 +178,7 @@ func run(ctx context.Context, argv []string) error {
 
 type startupArgs struct {
 	ResumeID       string
+	ReadOnly       bool
 	ManagementArgs []string
 }
 
@@ -184,6 +186,8 @@ func parseStartupArgs(argv []string) (startupArgs, error) {
 	out := startupArgs{ManagementArgs: []string{}}
 	for i := 0; i < len(argv); i++ {
 		switch argv[i] {
+		case "--read-only":
+			out.ReadOnly = true
 		case "--resume":
 			if i+1 >= len(argv) || strings.TrimSpace(argv[i+1]) == "" {
 				return startupArgs{}, fmt.Errorf("missing value for --resume")

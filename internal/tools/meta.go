@@ -24,6 +24,7 @@ const (
 	CodeInvalidInput = "invalid_input"
 	CodeToolError    = "tool_error"
 	CodeToolPanic    = "tool_panic"
+	CodeReadOnly     = "read_only_blocked"
 )
 
 // Meta 是一次工具执行的元数据。

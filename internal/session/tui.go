@@ -218,6 +218,7 @@ func (s *Session) runAgentForTUI(ctx context.Context, state *tuiState, input str
 		Recorder:   s.args.Recorder,
 		State:      s.args.State,
 		Report:     s.args.Report,
+		ReadOnly:   s.args.ReadOnly,
 		Memory:     s.args.Memory,
 		Freshness:  s.args.Freshness,
 		Model:      s.args.Model,

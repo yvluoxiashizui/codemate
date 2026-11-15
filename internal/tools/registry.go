@@ -26,9 +26,16 @@ type PermissionManager interface {
 	EnsureEdit(ctx context.Context, targetPath, diffPreview string) error
 }
 
+// Policy 是一次运行的工具策略。
+type Policy struct {
+	// ReadOnly 为真时只允许执行只读工具。
+	ReadOnly bool
+}
+
 type Context struct {
 	CWD        string
 	Permission PermissionManager
+	Policy     Policy
 	affected   *[]string
 }
 
@@ -129,6 +136,14 @@ func (r *Registry) Execute(ctx context.Context, toolName string, input any, tool
 			OK:     false,
 			Output: "Unknown tool: " + toolName,
 			Meta:   Meta{Status: StatusReject, ErrorCode: CodeUnknownTool, RiskLevel: RiskHigh},
+		}
+	}
+
+	if toolContext.Policy.ReadOnly && !definition.ReadOnly {
+		return Result{
+			OK:     false,
+			Output: "Tool " + toolName + " is blocked: this run is read-only",
+			Meta:   Meta{Status: StatusReject, ErrorCode: CodeReadOnly, RiskLevel: definition.Risk, ReadOnly: true},
 		}
 	}
 

@@ -24,6 +24,7 @@ type Args struct {
 	Runtime        *config.Runtime
 	Entries        []ctxpkg.HistoryEntry
 	Prefix         string
+	ReadOnly       bool
 	Fingerprint    string
 	Permission     tools.PermissionManager
 	History        History
@@ -198,6 +199,7 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 		Recorder:   s.args.Recorder,
 		State:      s.args.State,
 		Report:     s.args.Report,
+		ReadOnly:   s.args.ReadOnly,
 		Memory:     s.args.Memory,
 		Freshness:  s.args.Freshness,
 		Model:      s.args.Model,
