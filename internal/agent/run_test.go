@@ -218,6 +218,34 @@ func TestRunRecordsToolPath(t *testing.T) {
 	}
 }
 
+func TestRunFinalizesAfterStepLimit(t *testing.T) {
+	model := &scriptedCompleter{responses: []string{
+		`<tool>{"name":"echo","args":{}}</tool>`,
+		`<tool>{"name":"echo","args":{}}</tool>`,
+		"<final>用已有证据收尾</final>",
+	}}
+	result := Run(context.Background(), RunArgs{
+		Model:     model,
+		Tools:     echoRegistry(),
+		Prefix:    "prefix",
+		UserInput: "跑满步数",
+		MaxSteps:  2,
+	})
+
+	if result.State.Status != StatusCompleted {
+		t.Fatalf("收尾阶段给出 final 应算完成: %#v", result.State)
+	}
+	if result.State.FinalAnswer != "用已有证据收尾" {
+		t.Fatalf("final = %q", result.State.FinalAnswer)
+	}
+	if len(model.prompts) != 3 {
+		t.Fatalf("应有两次工具轮加一次收尾请求: %d", len(model.prompts))
+	}
+	if !strings.Contains(model.prompts[2], "tool budget is exhausted") {
+		t.Fatal("收尾请求应带上预算用尽的提示")
+	}
+}
+
 func TestRunRecordsAttempts(t *testing.T) {
 	model := &scriptedCompleter{responses: []string{
 		`<tool>{"name":"echo","args":{}}</tool>`,

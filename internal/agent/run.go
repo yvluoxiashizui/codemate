@@ -16,6 +16,10 @@ const (
 )
 
 const (
+	// finalizationNotice 在工具预算用尽后追加，要求模型只给最终答案。
+	finalizationNotice = "\n\nRuntime notice: the tool budget is exhausted. Do not call another tool. " +
+		"Use the evidence already present in the tool history and return exactly one non-empty <final>...</final> answer."
+
 	// stopByRetry 是格式错误次数用尽时的收尾文案。
 	stopByRetry = "模型连续返回无法解析的格式，已停止本次任务。"
 
@@ -129,6 +133,28 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 
 		case protocol.KindFinal:
 			return finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
+		}
+	}
+
+	if toolSteps >= maxSteps {
+		state.Attempts = attempts + 1
+		prompt, meta := buildPrompt(args, history)
+		prompt += finalizationNotice
+		record(args.Recorder, "prompt_built", map[string]any{
+			"prompt_chars":  len(prompt),
+			"history_chars": meta.HistoryChars,
+			"reductions":    meta.Reductions,
+			"purpose":       "finalization",
+		})
+		raw, err := requestModel(ctx, args.Recorder, args.Model, prompt)
+		if err == nil {
+			if action := protocol.Parse(raw); action.Kind == protocol.KindFinal {
+				return finish(state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
+			}
+		} else {
+			state.Status = StatusFailed
+			state.StopReason = StopModelError
+			return RunResult{State: state, History: history}
 		}
 	}
 
