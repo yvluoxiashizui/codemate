@@ -9,6 +9,7 @@ import (
 type Result struct {
 	OK     bool
 	Output string
+	Meta   Meta
 }
 
 func Success(output string) Result {
@@ -28,12 +29,28 @@ type PermissionManager interface {
 type Context struct {
 	CWD        string
 	Permission PermissionManager
+	affected   *[]string
+}
+
+// ReportAffected 记录本次调用改动或读取的文件路径。
+func (c Context) ReportAffected(path string) {
+	if c.affected == nil || path == "" {
+		return
+	}
+	for _, existing := range *c.affected {
+		if existing == path {
+			return
+		}
+	}
+	*c.affected = append(*c.affected, path)
 }
 
 type Definition struct {
 	Name        string
 	Description string
 	InputSchema map[string]any
+	Risk        RiskLevel
+	ReadOnly    bool
 	Run         func(context.Context, json.RawMessage, Context) Result
 }
 
@@ -106,27 +123,60 @@ func (r *Registry) Find(name string) (Definition, bool) {
 func (r *Registry) Execute(ctx context.Context, toolName string, input any, toolContext Context) (result Result) {
 	definition, ok := r.Find(toolName)
 	if !ok {
-		return Error("Unknown tool: " + toolName)
+		return Result{
+			OK:     false,
+			Output: "Unknown tool: " + toolName,
+			Meta:   Meta{Status: StatusReject, ErrorCode: CodeUnknownTool, RiskLevel: RiskHigh},
+		}
+	}
+
+	affected := make([]string, 0, 2)
+	toolContext.affected = &affected
+
+	meta := Meta{
+		Status:    StatusOK,
+		RiskLevel: definition.Risk,
+		ReadOnly:  definition.ReadOnly,
+	}
+	if meta.RiskLevel == "" {
+		meta.RiskLevel = RiskLow
 	}
 
 	raw, err := normalizeInput(input)
 	if err != nil {
-		return Error(err.Error())
+		return finishWithError(toolName, meta, affected, CodeInvalidInput, err.Error())
 	}
 	if err := validateInputSchema(definition.InputSchema, raw); err != nil {
-		return Error("Invalid input for " + toolName + ": " + err.Error())
+		return finishWithError(toolName, meta, affected, CodeInvalidInput, "Invalid input for "+toolName+": "+err.Error())
 	}
 
 	if definition.Run == nil {
-		return Error("Tool has no runner: " + toolName)
+		return finishWithError(toolName, meta, affected, CodeToolError, "Tool has no runner: "+toolName)
 	}
 
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			result = Error(fmt.Sprintf("Tool %s panicked: %v", toolName, recovered))
+			result = finishWithError(toolName, meta, affected, CodeToolPanic, fmt.Sprintf("Tool %s panicked: %v", toolName, recovered))
 		}
 	}()
-	return definition.Run(ctx, raw, toolContext)
+
+	result = definition.Run(ctx, raw, toolContext)
+	result.Meta = meta
+	result.Meta.AffectedPaths = affected
+	result.Meta.WorkspaceChanged = !definition.ReadOnly && len(affected) > 0
+	if !result.OK {
+		result.Meta.Status = StatusError
+		result.Meta.ErrorCode = CodeToolError
+	}
+	return result
+}
+
+// finishWithError 统一构造失败结果。
+func finishWithError(toolName string, meta Meta, affected []string, code, message string) Result {
+	meta.Status = StatusError
+	meta.ErrorCode = code
+	meta.AffectedPaths = affected
+	return Result{OK: false, Output: message, Meta: meta}
 }
 
 func (r *Registry) Dispose(ctx context.Context) error {

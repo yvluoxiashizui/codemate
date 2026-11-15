@@ -38,6 +38,8 @@ func Builtins(cwd string, permission PermissionManager, skillLoader SkillLoader)
 func listFilesTool() Definition {
 	return Definition{
 		Name:        "list_files",
+		Risk:        RiskLow,
+		ReadOnly:    true,
 		Description: "List files in a directory relative to the workspace root.",
 		InputSchema: objectSchema(map[string]any{"path": map[string]any{"type": "string"}}, nil),
 		Run: func(ctx context.Context, raw json.RawMessage, tc Context) Result {
@@ -75,6 +77,8 @@ func listFilesTool() Definition {
 func grepFilesTool() Definition {
 	return Definition{
 		Name:        "grep_files",
+		Risk:        RiskLow,
+		ReadOnly:    true,
 		Description: "Search for text in files using ripgrep.",
 		InputSchema: objectSchema(map[string]any{"pattern": map[string]any{"type": "string"}, "path": map[string]any{"type": "string"}}, []string{"pattern"}),
 		Run: func(ctx context.Context, raw json.RawMessage, tc Context) Result {
@@ -110,6 +114,8 @@ func grepFilesTool() Definition {
 func readFileTool() Definition {
 	return Definition{
 		Name:        "read_file",
+		Risk:        RiskLow,
+		ReadOnly:    true,
 		Description: "Read a UTF-8 text file relative to the workspace root. Large files can be read in chunks via offset and limit.",
 		InputSchema: objectSchema(map[string]any{"path": map[string]any{"type": "string"}, "offset": map[string]any{"type": "number"}, "limit": map[string]any{"type": "number"}}, []string{"path"}),
 		Run: func(ctx context.Context, raw json.RawMessage, tc Context) Result {
@@ -178,6 +184,8 @@ func reviewedWriteTool(name, description string) Definition {
 		Name:        name,
 		Description: description,
 		InputSchema: objectSchema(map[string]any{"path": map[string]any{"type": "string"}, "content": map[string]any{"type": "string"}}, []string{"path", "content"}),
+		Risk:        RiskHigh,
+		ReadOnly:    false,
 		Run: func(ctx context.Context, raw json.RawMessage, tc Context) Result {
 			var input struct {
 				Path    string `json:"path"`
@@ -186,6 +194,7 @@ func reviewedWriteTool(name, description string) Definition {
 			if err := json.Unmarshal(raw, &input); err != nil {
 				return Error(err.Error())
 			}
+			tc.ReportAffected(input.Path)
 			target, err := workspace.Resolve(ctx, tc.CWD, input.Path, "write", tc.Permission)
 			if err != nil {
 				return Error(err.Error())
@@ -198,6 +207,8 @@ func reviewedWriteTool(name, description string) Definition {
 func editFileTool() Definition {
 	return Definition{
 		Name:        "edit_file",
+		Risk:        RiskHigh,
+		ReadOnly:    false,
 		Description: "Edit a text file by replacing exact text.",
 		InputSchema: objectSchema(map[string]any{"path": map[string]any{"type": "string"}, "search": map[string]any{"type": "string"}, "replace": map[string]any{"type": "string"}, "replaceAll": map[string]any{"type": "boolean"}}, []string{"path", "search", "replace"}),
 		Run: func(ctx context.Context, raw json.RawMessage, tc Context) Result {
@@ -210,6 +221,7 @@ func editFileTool() Definition {
 			if err := json.Unmarshal(raw, &input); err != nil {
 				return Error(err.Error())
 			}
+			tc.ReportAffected(input.Path)
 			target, err := workspace.Resolve(ctx, tc.CWD, input.Path, "write", tc.Permission)
 			if err != nil {
 				return Error(err.Error())
@@ -234,6 +246,8 @@ func editFileTool() Definition {
 func patchFileTool() Definition {
 	return Definition{
 		Name:        "patch_file",
+		Risk:        RiskHigh,
+		ReadOnly:    false,
 		Description: "Apply multiple exact-text replacements to one file in a single operation.",
 		InputSchema: objectSchema(map[string]any{
 			"path": map[string]any{"type": "string"},
@@ -258,6 +272,7 @@ func patchFileTool() Definition {
 			if err := json.Unmarshal(raw, &input); err != nil {
 				return Error(err.Error())
 			}
+			tc.ReportAffected(input.Path)
 			target, err := workspace.Resolve(ctx, tc.CWD, input.Path, "write", tc.Permission)
 			if err != nil {
 				return Error(err.Error())
@@ -289,6 +304,8 @@ func patchFileTool() Definition {
 func runCommandTool() Definition {
 	return Definition{
 		Name:        "run_command",
+		Risk:        RiskHigh,
+		ReadOnly:    false,
 		Description: "Run a common development command from an allowlist.",
 		InputSchema: objectSchema(map[string]any{
 			"command": map[string]any{"type": "string"},
@@ -348,6 +365,8 @@ func runCommandTool() Definition {
 func loadSkillTool(loader SkillLoader) Definition {
 	return Definition{
 		Name:        "load_skill",
+		Risk:        RiskLow,
+		ReadOnly:    true,
 		Description: "Load the full contents of a named SKILL.md file so you can follow that workflow accurately.",
 		InputSchema: objectSchema(map[string]any{"name": map[string]any{"type": "string"}}, []string{"name"}),
 		Run: func(ctx context.Context, raw json.RawMessage, _ Context) Result {

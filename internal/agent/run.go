@@ -169,10 +169,16 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 				Text:     result.Output,
 			})
 			record(args.Recorder, "tool_executed", map[string]any{
-				"name":         action.Tool,
-				"ok":           result.OK,
-				"duration_ms":  time.Since(started).Milliseconds(),
-				"output_chars": len(result.Output),
+				"name":              action.Tool,
+				"ok":                result.OK,
+				"duration_ms":       time.Since(started).Milliseconds(),
+				"output_chars":      len(result.Output),
+				"tool_status":       result.Meta.Status,
+				"tool_error_code":   result.Meta.ErrorCode,
+				"risk_level":        string(result.Meta.RiskLevel),
+				"read_only":         result.Meta.ReadOnly,
+				"workspace_changed": result.Meta.WorkspaceChanged,
+				"affected_paths":    result.Meta.AffectedPaths,
 			})
 			flush()
 			if path := pathOf(action.Args); path != "" {
