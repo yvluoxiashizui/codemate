@@ -95,6 +95,12 @@ func LoadRuntime(cwd string) (Runtime, error) {
 		}
 	}
 
+	for key, value := range DotEnvValues(cwd) {
+		if _, exists := env[key]; !exists {
+			env[key] = value
+		}
+	}
+
 	provider := firstNonEmpty(os.Getenv("MINI_CODE_PROVIDER"), env["MINI_CODE_PROVIDER"], settings.Provider, "anthropic")
 	model := firstNonEmpty(os.Getenv("MINI_CODE_MODEL"), settings.Model, providerModelEnv(provider, env))
 	baseURL := firstNonEmpty(providerBaseURLEnv(provider, env), defaultBaseURL(provider))
