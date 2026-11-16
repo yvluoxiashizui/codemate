@@ -144,6 +144,10 @@ func run(ctx context.Context, argv []string) error {
 			}
 		}
 		if !session.Resumable(record, fingerprint) {
+			run.Event("runtime_identity_mismatch", map[string]any{
+				"fields":  []string{"workspace_fingerprint"},
+				"session": record.ID,
+			})
 			fmt.Fprintln(os.Stderr, "工作区已变化，未恢复会话，改为新建。")
 			sessionID = ""
 		} else {

@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/yvluoxiashizui/codemate/internal/session"
 )
 
 func TestUsageContainsManagementCommands(t *testing.T) {
@@ -93,5 +95,15 @@ func TestParseStartupArgsMaxNewTokens(t *testing.T) {
 	}
 	if _, err := parseStartupArgs([]string{"--max-new-tokens"}); err == nil {
 		t.Fatal("缺值应报错")
+	}
+}
+
+func TestResumableRejectsChangedFingerprint(t *testing.T) {
+	record := session.Record{ID: "s1", Fingerprint: "aaa"}
+	if session.Resumable(record, "bbb") {
+		t.Fatal("指纹变化应拒绝恢复")
+	}
+	if !session.Resumable(record, "aaa") {
+		t.Fatal("指纹一致应允许恢复")
 	}
 }
