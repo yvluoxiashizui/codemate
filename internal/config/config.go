@@ -128,7 +128,7 @@ func LoadRuntime(cwd string) (Runtime, error) {
 	if model == "" {
 		return Runtime{}, errors.New("No model configured. Set ~/.mini-code/settings.json or env.ANTHROPIC_MODEL.")
 	}
-	if authToken == "" && apiKey == "" {
+	if authToken == "" && apiKey == "" && provider != "ollama" && provider != "mock" {
 		return Runtime{}, errors.New("No auth configured. Set ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY in ~/.mini-code/settings.json or process env.")
 	}
 
@@ -283,6 +283,8 @@ func providerModelEnv(provider string, env map[string]string) string {
 	switch provider {
 	case "openai":
 		return env["OPENAI_MODEL"]
+	case "ollama":
+		return env["OLLAMA_MODEL"]
 	default:
 		return env["ANTHROPIC_MODEL"]
 	}
@@ -319,6 +321,8 @@ func defaultBaseURL(provider string) string {
 	switch provider {
 	case "openai":
 		return "https://api.openai.com"
+	case "ollama":
+		return "http://localhost:11434"
 	default:
 		return "https://api.anthropic.com"
 	}

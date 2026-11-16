@@ -22,6 +22,10 @@ func NewFromRuntime(runtime config.Runtime, registry *tools.Registry) (message.C
 		return NewAnthropic(func(context.Context) (config.Runtime, error) {
 			return runtime, nil
 		}, registry), nil
+	case "ollama":
+		return NewOllama(func(context.Context) (config.Runtime, error) {
+			return runtime, nil
+		}, registry), nil
 	case "openai", "openai-compatible":
 		return NewOpenAI(func(context.Context) (config.Runtime, error) {
 			return runtime, nil
