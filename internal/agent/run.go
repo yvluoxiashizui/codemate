@@ -73,6 +73,7 @@ type RunArgs struct {
 	Allowed    []string
 	Options    ctxpkg.Options
 	Recorder   Recorder
+	Features   Features
 	Memory     *memory.Store
 	Freshness  func(path string) string
 	State      StateSink
@@ -94,7 +95,14 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 	if maxSteps <= 0 {
 		maxSteps = DefaultMaxSteps
 	}
-	cacheKey := prefixCacheKey(args.Prefix)
+	features := args.Features
+	if !features.Memory && !features.RelevantMemory && !features.ContextReduction && !features.PromptCache {
+		features = DefaultFeatures()
+	}
+	cacheKey := ""
+	if features.PromptCache {
+		cacheKey = prefixCacheKey(args.Prefix)
+	}
 	maxDepth := args.MaxDepth
 	if maxDepth <= 0 {
 		maxDepth = DefaultMaxDepth
@@ -108,7 +116,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 		Status:      StatusRunning,
 		UserRequest: args.UserInput,
 	}
-	if args.Memory != nil {
+	if args.Memory != nil && features.Memory {
 		args.Memory.SetTaskSummary(args.UserInput)
 	}
 
@@ -187,7 +195,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 		state.Attempts = attempts
 		flush()
 
-		prompt, meta := buildPrompt(args, history)
+		prompt, meta := buildPrompt(args, history, features)
 		record(args.Recorder, "prompt_built", map[string]any{
 			"prompt_chars":  len(prompt),
 			"history_chars": meta.HistoryChars,
@@ -265,7 +273,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 					seen[path] = true
 					touched = append(touched, path)
 				}
-				if args.Memory != nil {
+				if args.Memory != nil && features.Memory {
 					freshness := ""
 					if args.Freshness != nil {
 						freshness = args.Freshness(path)
@@ -293,7 +301,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 
 	if toolSteps >= maxSteps {
 		state.Attempts = attempts + 1
-		prompt, meta := buildPrompt(args, history)
+		prompt, meta := buildPrompt(args, history, features)
 		prompt += finalizationNotice
 		record(args.Recorder, "prompt_built", map[string]any{
 			"prompt_chars":  len(prompt),
@@ -335,12 +343,18 @@ type promptMeta struct {
 	Reductions   int
 }
 
-func buildPrompt(args RunArgs, history []ctxpkg.HistoryEntry) (string, promptMeta) {
+func buildPrompt(args RunArgs, history []ctxpkg.HistoryEntry, features Features) (string, promptMeta) {
 	memoryText := ""
 	relevantText := ""
-	if args.Memory != nil {
+	if args.Memory != nil && features.Memory {
 		memoryText = args.Memory.Render()
-		relevantText = memory.RenderNotes(args.Memory.Retrieval(args.UserInput, 3))
+		if features.RelevantMemory {
+			relevantText = memory.RenderNotes(args.Memory.Retrieval(args.UserInput, 3))
+		}
+	}
+	options := args.Options
+	if !features.ContextReduction {
+		options.DisableReduction = true
 	}
 	built := ctxpkg.Build(ctxpkg.Sections{
 		Prefix:         args.Prefix,
@@ -348,7 +362,7 @@ func buildPrompt(args RunArgs, history []ctxpkg.HistoryEntry) (string, promptMet
 		Relevant:       relevantText,
 		History:        ctxpkg.RenderHistory(history, 0),
 		CurrentRequest: args.UserInput,
-	}, args.Options)
+	}, options)
 	return built.Prompt, promptMeta{
 		HistoryChars: built.Sections[ctxpkg.SectionHistory].Rendered,
 		Reductions:   len(built.Reductions),

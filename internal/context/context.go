@@ -45,10 +45,12 @@ type Sections struct {
 
 // Options 允许覆盖默认预算与顺序。
 type Options struct {
-	TotalBudget    int
-	Budgets        map[string]int
-	Floors         map[string]int
-	ReductionOrder []string
+	// DisableReduction 为真时不做预算收缩，用于对照实验。
+	DisableReduction bool
+	TotalBudget      int
+	Budgets          map[string]int
+	Floors           map[string]int
+	ReductionOrder   []string
 }
 
 // SectionRender 记录一节在本次拼装中的长度变化。
@@ -98,7 +100,7 @@ func Build(sections Sections, options Options) Result {
 	prompt := assemble(rendered)
 	reductions := []Reduction{}
 
-	for len(prompt) > total {
+	for !options.DisableReduction && len(prompt) > total {
 		overflow := len(prompt) - total
 		reduced := false
 		for _, section := range order {
