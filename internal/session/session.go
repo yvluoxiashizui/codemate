@@ -24,6 +24,7 @@ type Args struct {
 	Runtime        *config.Runtime
 	Entries        []ctxpkg.HistoryEntry
 	Prefix         string
+	PrefixFn       func() string
 	ReadOnly       bool
 	Allowed        []string
 	Fingerprint    string
@@ -206,7 +207,7 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 		Freshness:  s.args.Freshness,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
-		Prefix:     s.args.Prefix,
+		Prefix:     s.currentPrefix(),
 		History:    s.args.Entries,
 		UserInput:  input,
 		CWD:        s.args.CWD,
@@ -259,4 +260,12 @@ func (s *Session) persistMessages() error {
 // CheckpointSink 在每轮结束后接收检查点写入请求。
 type CheckpointSink interface {
 	WriteCheckpoint(result agent.RunResult) string
+}
+
+// currentPrefix 取当前前缀；配置了来源时按需重建。
+func (s *Session) currentPrefix() string {
+	if s.args.PrefixFn != nil {
+		return s.args.PrefixFn()
+	}
+	return s.args.Prefix
 }

@@ -224,7 +224,7 @@ func (s *Session) runAgentForTUI(ctx context.Context, state *tuiState, input str
 		Freshness:  s.args.Freshness,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,
-		Prefix:     s.args.Prefix,
+		Prefix:     s.currentPrefix(),
 		History:    s.args.Entries,
 		UserInput:  input,
 		CWD:        s.args.CWD,

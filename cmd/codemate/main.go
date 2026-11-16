@@ -15,6 +15,7 @@ import (
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/model"
 	"github.com/yvluoxiashizui/codemate/internal/permissions"
+	"github.com/yvluoxiashizui/codemate/internal/prefix"
 	"github.com/yvluoxiashizui/codemate/internal/prompt"
 	"github.com/yvluoxiashizui/codemate/internal/protocol"
 	"github.com/yvluoxiashizui/codemate/internal/runs"
@@ -68,7 +69,7 @@ func run(ctx context.Context, argv []string) error {
 		MCPServers:        toolRegistry.MCPServers(),
 	})
 	wsContext := workspace.BuildContext(cwd)
-	prefix := protocol.BuildPrefix(
+	prefixText := protocol.BuildPrefix(
 		protocol.Workspace{
 			Root:          wsContext.Root,
 			Branch:        wsContext.Branch,
@@ -79,6 +80,19 @@ func run(ctx context.Context, argv []string) error {
 		},
 		protocol.ToolSpecs(toolRegistry),
 	) + "\n\n" + systemPrompt
+	prefixSource := prefix.New(func() string {
+		info := workspace.BuildContext(cwd)
+		return protocol.BuildPrefix(protocol.Workspace{
+			Root:          info.Root,
+			Branch:        info.Branch,
+			Dirty:         info.Dirty,
+			TrackedFiles:  info.TrackedFiles,
+			RecentCommits: info.RecentCommits,
+			ProjectDocs:   info.ProjectDocs,
+		}, protocol.ToolSpecs(toolRegistry)) + "\n\n" + systemPrompt
+	}, func() string { return workspace.Fingerprint(cwd) })
+	_ = prefixText
+	prefix := prefixSource.Get()
 
 	var adapter message.Completer
 	mockMode := os.Getenv("MINI_CODE_MODEL_MODE") == "mock"
@@ -148,6 +162,7 @@ func run(ctx context.Context, argv []string) error {
 		Runtime:     runtimePtr(runtime, runtimeErr),
 		Entries:     entries,
 		Prefix:      prefix,
+		PrefixFn:    prefixSource.Get,
 		Fingerprint: fingerprint,
 		Permission:  pm,
 		History:     session.History{Path: config.HistoryPath()},
