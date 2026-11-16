@@ -221,6 +221,7 @@ func (s *Session) runAgentForTUI(ctx context.Context, state *tuiState, input str
 		ReadOnly:   s.args.ReadOnly,
 		Allowed:    s.args.Allowed,
 		Memory:     s.args.Memory,
+		Durable:    s.args.Durable,
 		Freshness:  s.args.Freshness,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,

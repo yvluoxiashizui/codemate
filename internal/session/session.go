@@ -38,6 +38,7 @@ type Args struct {
 	Checkpoint     CheckpointSink
 	CheckpointPath string
 	Memory         *memory.Store
+	Durable        *memory.DurableStore
 	Freshness      func(path string) string
 	In             io.Reader
 	Out            io.Writer
@@ -204,6 +205,7 @@ func (s *Session) RunOnce(ctx context.Context, input string) error {
 		ReadOnly:   s.args.ReadOnly,
 		Allowed:    s.args.Allowed,
 		Memory:     s.args.Memory,
+		Durable:    s.args.Durable,
 		Freshness:  s.args.Freshness,
 		Model:      s.args.Model,
 		Tools:      s.args.Tools,

@@ -75,6 +75,7 @@ type RunArgs struct {
 	Recorder   Recorder
 	Features   Features
 	Memory     *memory.Store
+	Durable    *memory.DurableStore
 	Freshness  func(path string) string
 	State      StateSink
 	Report     ReportSink
@@ -118,6 +119,10 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 	}
 	if args.Memory != nil && features.Memory {
 		args.Memory.SetTaskSummary(args.UserInput)
+	}
+	if args.Durable != nil && features.Memory && memory.HasMemoryIntent(args.UserInput) {
+		args.Durable.Promote(memory.DetectPromotions(args.UserInput))
+		_ = args.Durable.Save()
 	}
 
 	history := append(append([]ctxpkg.HistoryEntry(nil), args.History...),
@@ -278,7 +283,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 					if args.Freshness != nil {
 						freshness = args.Freshness(path)
 					}
-					args.Memory.RememberFile(path, summarizeOutput(result.Output), freshness)
+					args.Memory.RememberFile(path, summarizeToolOutput(action.Tool, result.Output), freshness)
 				}
 			}
 			if args.OnTool != nil {
@@ -349,7 +354,11 @@ func buildPrompt(args RunArgs, history []ctxpkg.HistoryEntry, features Features)
 	if args.Memory != nil && features.Memory {
 		memoryText = args.Memory.Render()
 		if features.RelevantMemory {
-			relevantText = memory.RenderNotes(args.Memory.Retrieval(args.UserInput, 3))
+			var durable []memory.DurableNote
+			if args.Durable != nil {
+				durable = args.Durable.Notes()
+			}
+			relevantText = memory.RenderView(args.Memory.Retrieval(args.UserInput, 3), durable)
 		}
 	}
 	options := args.Options
@@ -428,6 +437,14 @@ func pathOf(args map[string]any) string {
 		return ""
 	}
 	return value
+}
+
+// summarizeToolOutput 按工具类型压缩输出：读文件用专门的摘要逻辑，其余取首行。
+func summarizeToolOutput(tool string, output string) string {
+	if tool == "read_file" {
+		return memory.SummarizeReadResult(output, 0)
+	}
+	return summarizeOutput(output)
 }
 
 // summarizeOutput 把工具输出压成一句话摘要，供记忆层保存。

@@ -116,6 +116,10 @@ func run(ctx context.Context, argv []string) error {
 		_ = run.Close("exit")
 	}()
 
+	durable, durableErr := memory.OpenDurable(cwd)
+	if durableErr != nil {
+		fmt.Fprintln(os.Stderr, "长期记忆不可用:", durableErr)
+	}
 	mem, memErr := memory.Open(cwd)
 	if memErr != nil {
 		fmt.Fprintln(os.Stderr, "记忆文件不可用:", memErr)
@@ -160,6 +164,7 @@ func run(ctx context.Context, argv []string) error {
 		Tools:       toolRegistry,
 		Model:       adapter,
 		Runtime:     runtimePtr(runtime, runtimeErr),
+		Durable:     durable,
 		Entries:     entries,
 		Prefix:      prefix,
 		PrefixFn:    prefixSource.Get,
