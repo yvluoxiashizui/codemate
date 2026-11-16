@@ -19,6 +19,7 @@ func main() {
 	limit := flag.Int("limit", 0, "只跑前 N 条任务，0 表示全部")
 	out := flag.String("out", "", "把结果写成 JSON 的路径")
 	cwd := flag.String("cwd", "", "读取模型配置的目录，默认当前目录")
+	benchmarkPath := flag.String("benchmark", "", "任务集 JSON 路径，留空时用内置任务集")
 	flag.Parse()
 
 	workdir := *cwd
@@ -43,6 +44,14 @@ func main() {
 	}
 
 	cases := eval.DefaultCases()
+	if *benchmarkPath != "" {
+		benchmark, err := eval.LoadBenchmark(*benchmarkPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "任务集不可用:", err)
+			os.Exit(1)
+		}
+		cases = benchmark.Cases()
+	}
 	if *limit > 0 && *limit < len(cases) {
 		cases = cases[:*limit]
 	}
