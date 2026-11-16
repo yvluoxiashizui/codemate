@@ -7,6 +7,11 @@ type Completer interface {
 	Complete(ctx context.Context, prompt string) (string, error)
 }
 
+// CachingCompleter 是支持提示词缓存的模型接口。
+type CachingCompleter interface {
+	CompleteWithCache(ctx context.Context, prompt, cacheKey, retention string) (text string, cachedTokens int, err error)
+}
+
 type Role string
 
 const (

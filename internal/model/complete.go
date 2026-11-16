@@ -13,9 +13,31 @@ import (
 // Complete 以单段 prompt 请求 OpenAI 兼容接口，返回纯文本应答。
 // 文本协议下模型不返回结构化工具调用，因此这里只关心正文。
 func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
+	text, _, err := o.send(ctx, prompt, nil)
+	return text, err
+}
+
+// CompleteWithCache 带上提示词缓存键请求，并返回缓存命中情况。
+func (o *OpenAI) CompleteWithCache(ctx context.Context, prompt, cacheKey, retention string) (string, int, error) {
 	runtime, err := o.runtime(ctx)
 	if err != nil {
-		return "", err
+		return "", 0, err
+	}
+	extra := map[string]any{}
+	if cacheKey != "" && supportsPromptCache(runtime.BaseURL) {
+		extra["prompt_cache_key"] = cacheKey
+		if retention != "" {
+			extra["prompt_cache_retention"] = retention
+		}
+	}
+	return o.send(ctx, prompt, extra)
+}
+
+// send 组装请求并返回正文与命中的缓存 token 数。
+func (o *OpenAI) send(ctx context.Context, prompt string, extra map[string]any) (string, int, error) {
+	runtime, err := o.runtime(ctx)
+	if err != nil {
+		return "", 0, err
 	}
 	ctx, cancel := withTimeout(ctx, runtime.TimeoutSeconds)
 	defer cancel()
@@ -33,14 +55,18 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 	if runtime.TopP > 0 {
 		payload["top_p"] = runtime.TopP
 	}
+	for key, value := range extra {
+		payload[key] = value
+	}
+
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(runtime.BaseURL, "/")+"/v1/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	req.Header.Set("content-type", "application/json")
 	if runtime.AuthToken != "" {
@@ -51,24 +77,30 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 
 	res, err := o.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer res.Body.Close()
 
 	var data openAIResponse
 	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		if data.Error.Message != "" {
-			return "", fmt.Errorf("%s", data.Error.Message)
+			return "", 0, fmt.Errorf("%s", data.Error.Message)
 		}
-		return "", fmt.Errorf("model request failed: %d", res.StatusCode)
+		return "", 0, fmt.Errorf("model request failed: %d", res.StatusCode)
 	}
 	if len(data.Choices) == 0 {
-		return "", fmt.Errorf("model returned no choices")
+		return "", 0, fmt.Errorf("model returned no choices")
 	}
-	return data.Choices[0].Message.Content, nil
+	return data.Choices[0].Message.Content, data.Usage.PromptTokensDetails.CachedTokens, nil
+}
+
+// supportsPromptCache 判断当前供应商是否支持提示词缓存。
+func supportsPromptCache(baseURL string) bool {
+	lower := strings.ToLower(baseURL)
+	return strings.Contains(lower, "openai.com") || strings.Contains(lower, "right.codes")
 }
 
 // samplingOrDefault 在未配置采样参数时给出默认值。
@@ -97,6 +129,11 @@ type openAIResponse struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
+	Usage struct {
+		PromptTokensDetails struct {
+			CachedTokens int `json:"cached_tokens"`
+		} `json:"prompt_tokens_details"`
+	} `json:"usage"`
 }
 
 // contentBlock 是 Anthropic 应答里的内容块。

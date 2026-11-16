@@ -57,3 +57,40 @@ func TestRunWithoutStateSinkDoesNotPanic(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRunRecordsCacheHitInEvent(t *testing.T) {
+	recorder := &captureRecorder{}
+	model := &cachingModel{}
+	Run(context.Background(), RunArgs{
+		Model:     model,
+		Tools:     echoRegistry(),
+		Prefix:    "stable prefix",
+		UserInput: "hi",
+		Recorder:  recorder,
+	})
+
+	event, ok := recorder.find("model_parsed")
+	if !ok {
+		t.Fatal("缺少 model_parsed 事件")
+	}
+	if event.data["cached_tokens"] != 64 {
+		t.Fatalf("cached_tokens = %v", event.data["cached_tokens"])
+	}
+	if event.data["cache_hit"] != true {
+		t.Fatalf("cache_hit = %v", event.data["cache_hit"])
+	}
+	request, ok := recorder.find("model_requested")
+	if !ok || request.data["cache_key"] == "" {
+		t.Fatalf("请求事件应带缓存键: %#v", request.data)
+	}
+}
+
+type cachingModel struct{}
+
+func (cachingModel) Complete(context.Context, string) (string, error) {
+	return "<final>无缓存</final>", nil
+}
+
+func (cachingModel) CompleteWithCache(context.Context, string, string, string) (string, int, error) {
+	return "<final>命中缓存</final>", 64, nil
+}

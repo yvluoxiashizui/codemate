@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"time"
@@ -92,6 +94,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 	if maxSteps <= 0 {
 		maxSteps = DefaultMaxSteps
 	}
+	cacheKey := prefixCacheKey(args.Prefix)
 	maxDepth := args.MaxDepth
 	if maxDepth <= 0 {
 		maxDepth = DefaultMaxDepth
@@ -192,7 +195,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			"attempt":       attempts,
 		})
 
-		raw, elapsed, err := requestModel(ctx, args.Recorder, args.Model, prompt)
+		raw, elapsed, cachedTokens, err := requestModel(ctx, args.Recorder, args.Model, prompt, cacheKey)
 		if err != nil {
 			record(args.Recorder, "model_parsed", map[string]any{
 				"duration_ms": elapsed.Milliseconds(),
@@ -206,11 +209,13 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 
 		action := protocol.Parse(raw)
 		record(args.Recorder, "model_parsed", map[string]any{
-			"kind":        string(action.Kind),
-			"tool":        action.Tool,
-			"chars":       len(raw),
-			"duration_ms": elapsed.Milliseconds(),
-			"ok":          true,
+			"kind":          string(action.Kind),
+			"tool":          action.Tool,
+			"chars":         len(raw),
+			"duration_ms":   elapsed.Milliseconds(),
+			"cached_tokens": cachedTokens,
+			"cache_hit":     cachedTokens > 0,
+			"ok":            true,
 		})
 
 		switch action.Kind {
@@ -296,7 +301,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 			"reductions":    meta.Reductions,
 			"purpose":       "finalization",
 		})
-		raw, _, err := requestModel(ctx, args.Recorder, args.Model, prompt)
+		raw, _, _, err := requestModel(ctx, args.Recorder, args.Model, prompt, cacheKey)
 		if err == nil {
 			if action := protocol.Parse(raw); action.Kind == protocol.KindFinal {
 				result := finish(&state, history, action.Final, args, StatusCompleted, StopFinalAnswer)
@@ -350,13 +355,29 @@ func buildPrompt(args RunArgs, history []ctxpkg.HistoryEntry) (string, promptMet
 	}
 }
 
-func requestModel(ctx context.Context, recorder Recorder, model message.Completer, prompt string) (string, time.Duration, error) {
+// prefixCacheKey 用提示词前缀的哈希作为缓存键，前缀不变时键也不变。
+func prefixCacheKey(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(prefix))
+	return hex.EncodeToString(sum[:8])
+}
+
+func requestModel(ctx context.Context, recorder Recorder, model message.Completer, prompt, cacheKey string) (string, time.Duration, int, error) {
 	record(recorder, "model_requested", map[string]any{
 		"prompt_chars": len(prompt),
+		"cache_key":    cacheKey,
 	})
 	started := time.Now()
+	if cacheKey != "" {
+		if caching, ok := model.(message.CachingCompleter); ok {
+			raw, cached, err := caching.CompleteWithCache(ctx, prompt, cacheKey, "")
+			return raw, time.Since(started), cached, err
+		}
+	}
 	raw, err := model.Complete(ctx, prompt)
-	return raw, time.Since(started), err
+	return raw, time.Since(started), 0, err
 }
 
 func finish(state *TaskState, history []ctxpkg.HistoryEntry, final string, args RunArgs, status Status, reason StopReason) RunResult {
