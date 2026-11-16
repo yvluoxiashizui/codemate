@@ -71,6 +71,14 @@
 
 `internal/skills` 负责技能发现与加载。
 
+`internal/memory` 分两层：会话内的短期记忆（任务摘要、文件摘要、过程笔记）与跨会话的长期记忆（四个主题的提升与替换）。
+
+`internal/security` 负责密钥识别、文本与工件的脱敏，以及子进程的环境变量白名单。
+
+`internal/prefix` 缓存提示词前缀，只在工作区指纹变化时重建。
+
+`internal/eval` 是评测：任务集加载与校验、指标聚合、消融、压力、记忆依赖与回归对比。
+
 依赖方向单一：`cmd` → `session` → `agent` → `protocol` / `context` / `tools`；`runs` 与 `permissions` 是叶子。
 
 ## 5. 事件模型
@@ -81,7 +89,7 @@
 
 已定义的类型：
 
-`run.start` 含工作区路径。`run_started` 含用户请求。`prompt_built` 含轮次、prompt 字符数、历史渲染长度、收缩次数，收尾请求额外带 `purpose`。`model_requested` 含本次 prompt 字符数。`model_parsed` 含耗时、应答字符数、解析结果类型、是否成功。`tool_executed` 含工具名、成功标志、耗时、输出字符数。`run_finished` 含状态、停止原因、工具步数、请求次数。`run.end` 含退出原因。
+`run.start` 含工作区路径。`run_started` 含用户请求。`prompt_built` 含轮次、prompt 字符数、历史渲染长度、收缩次数，收尾请求额外带 `purpose`。`model_requested` 含本次 prompt 字符数。`model_parsed` 含耗时、应答字符数、解析结果类型、是否成功。`tool_executed` 含工具名、成功标志、耗时、输出字符数、工具状态、错误码、风险等级、是否只读、受影响路径、工作区是否改变、安全事件类型。`checkpoint_created` 含检查点路径、关键文件数与停止原因。`runtime_identity_mismatch` 含不匹配的字段与会话 ID。`run_finished` 含状态、停止原因、工具步数、请求次数。`run.end` 含退出原因。
 
 写入策略：追加写、行级原子、互斥锁保护序号。写入失败不打断任务，记下首个错误并在关闭时返回。
 
@@ -147,3 +155,9 @@
 命令执行靠审批与白名单，不是沙箱隔离。
 
 放弃原生 function calling 换来的是一致性与可控的 prompt 形态，代价是依赖模型遵循文本格式；格式遵从度差的模型会频繁解析失败。
+
+## 11. 运行参数
+
+`--resume <id|latest>` 恢复会话。`--read-only` 只允许只读工具。`--tool <name>` 限制本次可用工具，可重复。`--approval ask|auto|never` 选择审批策略。`--max-new-tokens N` 覆盖单步输出上限。
+
+模型参数走配置或环境变量：`timeoutSeconds`、`temperature`、`topP`、`maxOutputTokens` 分别对应 `MINI_CODE_TIMEOUT`、`MINI_CODE_TEMPERATURE`、`MINI_CODE_TOP_P`、`MINI_CODE_MAX_OUTPUT_TOKENS`。项目内 `.env` 会向上查找并补足缺失项，真实环境变量优先。
