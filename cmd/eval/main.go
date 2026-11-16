@@ -26,6 +26,7 @@ func main() {
 	saveBaseline := flag.String("save-baseline", "", "把本次结果写成基线 JSON 的路径")
 	tolerance := flag.Float64("tolerance", 0.05, "允许的通过率下降幅度")
 	memoryProbe := flag.String("memory", "", "记忆依赖实验：给出要检查的事实，留空则不跑")
+	runsDir := flag.String("runs", "", "聚合运行工件目录，给出后只做汇总不跑任务")
 	flag.Parse()
 
 	workdir := *cwd
@@ -74,6 +75,22 @@ func main() {
 				mark, result.Case, result.Attempts, result.ToolSteps, result.PromptChars, result.Reason)
 		},
 	}
+	if *runsDir != "" {
+		all, summary, err := eval.AggregateRuns(*runsDir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "聚合失败:", err)
+			os.Exit(1)
+		}
+		for _, item := range all {
+			fmt.Printf("%-24s %-10s 请求=%d 工具=%d prompt=%d\n",
+				item.RunID, item.Status, item.Attempts, item.ToolSteps, item.PromptChars)
+		}
+		fmt.Printf("\n运行 %d 条  完成率 %.1f%%  平均请求 %.1f  平均工具步数 %.1f  平均 prompt %.0f 字符  工具失败率 %.1f%%\n",
+			summary.Total, summary.PassRate*100, summary.AvgAttempts,
+			summary.AvgToolSteps, summary.AvgPromptChars, summary.ToolFailureRate*100)
+		return
+	}
+
 	if *memoryProbe != "" {
 		probe, err := eval.MeasureMemoryDependency(workdir, *memoryProbe, "这条事实你知道吗", adapter)
 		if err != nil {
