@@ -78,3 +78,20 @@ func TestRunWithoutRuntimeConfigDoesNotImplicitlyUseMock(t *testing.T) {
 		t.Fatalf("unexpected no-config behavior:\n%s", got)
 	}
 }
+
+func TestParseStartupArgsMaxNewTokens(t *testing.T) {
+	parsed, err := parseStartupArgs([]string{"--max-new-tokens", "256"})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if parsed.MaxNewTokens != 256 {
+		t.Fatalf("max new tokens = %d", parsed.MaxNewTokens)
+	}
+
+	if _, err := parseStartupArgs([]string{"--max-new-tokens", "0"}); err == nil {
+		t.Fatal("非正数应报错")
+	}
+	if _, err := parseStartupArgs([]string{"--max-new-tokens"}); err == nil {
+		t.Fatal("缺值应报错")
+	}
+}

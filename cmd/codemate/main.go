@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/yvluoxiashizui/codemate/internal/agent"
@@ -51,6 +52,10 @@ func run(ctx context.Context, argv []string) error {
 	discoveredSkills, _ := skillStore.Discover(ctx)
 	toolRegistry := tools.Builtins(cwd, nil, skillStore)
 	toolRegistry = tools.NewRegistry(toolRegistry.List(), tools.Metadata{Skills: discoveredSkills})
+
+	if startup.MaxNewTokens > 0 {
+		runtime.MaxOutputTokens = startup.MaxNewTokens
+	}
 
 	pm, _ := permissions.New(cwd, config.PermissionsPath(), nil)
 	if startup.Approval != "" {
@@ -185,6 +190,7 @@ type startupArgs struct {
 	ReadOnly       bool
 	AllowedTools   []string
 	Approval       string
+	MaxNewTokens   int
 	ManagementArgs []string
 }
 
@@ -192,6 +198,16 @@ func parseStartupArgs(argv []string) (startupArgs, error) {
 	out := startupArgs{ManagementArgs: []string{}}
 	for i := 0; i < len(argv); i++ {
 		switch argv[i] {
+		case "--max-new-tokens":
+			if i+1 >= len(argv) {
+				return startupArgs{}, fmt.Errorf("missing value for --max-new-tokens")
+			}
+			value, err := strconv.Atoi(argv[i+1])
+			if err != nil || value <= 0 {
+				return startupArgs{}, fmt.Errorf("invalid value for --max-new-tokens: %s", argv[i+1])
+			}
+			out.MaxNewTokens = value
+			i++
 		case "--approval":
 			if i+1 >= len(argv) {
 				return startupArgs{}, fmt.Errorf("missing value for --approval")
