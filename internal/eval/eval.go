@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/yvluoxiashizui/codemate/internal/agent"
+	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/protocol"
 	"github.com/yvluoxiashizui/codemate/internal/tools"
@@ -51,6 +52,10 @@ type Summary struct {
 type Runner struct {
 	Model    message.Completer
 	MaxSteps int
+	// Features 是本次评测使用的开关，零值表示全开。
+	Features agent.Features
+	// Options 是上下文预算，零值表示用默认预算。
+	Options  ctxpkg.Options
 	OnResult func(Result)
 }
 
@@ -94,6 +99,8 @@ func (r Runner) RunCase(ctx context.Context, item Case) Result {
 		UserInput: item.Prompt,
 		CWD:       root,
 		MaxSteps:  r.MaxSteps,
+		Features:  r.Features,
+		Options:   r.Options,
 		Recorder:  recorder,
 	})
 
