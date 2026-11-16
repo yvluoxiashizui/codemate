@@ -27,6 +27,12 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 	if runtime.MaxOutputTokens > 0 {
 		payload["max_tokens"] = runtime.MaxOutputTokens
 	}
+	if runtime.Temperature > 0 {
+		payload["temperature"] = runtime.Temperature
+	}
+	if runtime.TopP > 0 {
+		payload["top_p"] = runtime.TopP
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
@@ -65,6 +71,14 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 	return data.Choices[0].Message.Content, nil
 }
 
+// samplingOrDefault 在未配置采样参数时给出默认值。
+func samplingOrDefault(value, fallback float64) float64 {
+	if value <= 0 {
+		return fallback
+	}
+	return value
+}
+
 // withTimeout 给请求加上超时；未配置时沿用调用方的上下文。
 func withTimeout(ctx context.Context, seconds int) (context.Context, context.CancelFunc) {
 	if seconds <= 0 {
@@ -101,9 +115,11 @@ func (a *Anthropic) Complete(ctx context.Context, prompt string) (string, error)
 	defer cancel()
 
 	payload := map[string]any{
-		"model":      runtime.Model,
-		"max_tokens": maxTokensOrDefault(runtime.MaxOutputTokens),
-		"messages":   []map[string]any{{"role": "user", "content": prompt}},
+		"model":       runtime.Model,
+		"max_tokens":  maxTokensOrDefault(runtime.MaxOutputTokens),
+		"temperature": samplingOrDefault(runtime.Temperature, 0.2),
+		"top_p":       samplingOrDefault(runtime.TopP, 0.9),
+		"messages":    []map[string]any{{"role": "user", "content": prompt}},
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

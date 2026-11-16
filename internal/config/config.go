@@ -14,6 +14,8 @@ type Settings struct {
 	Model           string                     `json:"model,omitempty"`
 	MaxOutputTokens int                        `json:"maxOutputTokens,omitempty"`
 	TimeoutSeconds  int                        `json:"timeoutSeconds,omitempty"`
+	Temperature     float64                    `json:"temperature,omitempty"`
+	TopP            float64                    `json:"topP,omitempty"`
 	MCPServers      map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 }
 
@@ -34,6 +36,8 @@ type Runtime struct {
 	APIKey          string
 	MaxOutputTokens int
 	TimeoutSeconds  int
+	Temperature     float64
+	TopP            float64
 	MCPServers      map[string]MCPServerConfig
 	SourceSummary   string
 }
@@ -96,6 +100,18 @@ func LoadRuntime(cwd string) (Runtime, error) {
 	baseURL := firstNonEmpty(providerBaseURLEnv(provider, env), defaultBaseURL(provider))
 	authToken := providerAuthTokenEnv(provider, env)
 	apiKey := providerAPIKeyEnv(provider, env)
+	temperature := settings.Temperature
+	if raw := firstNonEmpty(os.Getenv("MINI_CODE_TEMPERATURE"), env["MINI_CODE_TEMPERATURE"]); raw != "" {
+		if parsed, err := strconv.ParseFloat(raw, 64); err == nil && parsed >= 0 {
+			temperature = parsed
+		}
+	}
+	topP := settings.TopP
+	if raw := firstNonEmpty(os.Getenv("MINI_CODE_TOP_P"), env["MINI_CODE_TOP_P"]); raw != "" {
+		if parsed, err := strconv.ParseFloat(raw, 64); err == nil && parsed > 0 {
+			topP = parsed
+		}
+	}
 	timeoutSeconds := settings.TimeoutSeconds
 	if raw := firstNonEmpty(os.Getenv("MINI_CODE_TIMEOUT"), env["MINI_CODE_TIMEOUT"]); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
@@ -124,6 +140,8 @@ func LoadRuntime(cwd string) (Runtime, error) {
 		APIKey:          apiKey,
 		MaxOutputTokens: maxTokens,
 		TimeoutSeconds:  timeoutSeconds,
+		Temperature:     temperature,
+		TopP:            topP,
 		MCPServers:      settings.MCPServers,
 		SourceSummary:   "config: " + SettingsPath() + " > " + ClaudeSettingsPath() + " > process.env",
 	}, nil
