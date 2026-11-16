@@ -34,7 +34,7 @@ func EvaluateResume(checkpoint Checkpoint, identity map[string]any, freshness fu
 	}
 
 	mismatch := make([]string, 0, 4)
-	for _, key := range []string{"cwd", "workspace_fingerprint", "model", "max_steps"} {
+	for _, key := range []string{"cwd", "workspace_fingerprint", "model", "max_steps", "tool_signature"} {
 		expected, ok := checkpoint.RuntimeIdentity[key]
 		if !ok {
 			continue

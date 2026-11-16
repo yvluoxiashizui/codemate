@@ -10,11 +10,12 @@ import (
 
 // checkpointWriter 在每轮结束后把检查点写进运行目录。
 type checkpointWriter struct {
-	run         *runs.Run
-	cwd         string
-	model       string
-	fingerprint string
-	maxSteps    int
+	run           *runs.Run
+	cwd           string
+	model         string
+	toolSignature string
+	fingerprint   string
+	maxSteps      int
 }
 
 // WriteCheckpoint 写入检查点并返回文件路径。
@@ -37,6 +38,7 @@ func (w checkpointWriter) WriteCheckpoint(result agent.RunResult) string {
 			"model":                 w.model,
 			"max_steps":             w.maxSteps,
 			"workspace_fingerprint": w.fingerprint,
+			"tool_signature":        w.toolSignature,
 			"status":                string(result.State.Status),
 			"stop_reason":           string(result.State.StopReason),
 		},

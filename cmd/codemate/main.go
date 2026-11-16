@@ -119,7 +119,7 @@ func run(ctx context.Context, argv []string) error {
 		resumeHint := ""
 		if record.CheckpointPath != "" {
 			if checkpoint, err := runs.LoadCheckpoint(record.CheckpointPath); err == nil {
-				verdict := runs.EvaluateResume(checkpoint, runtimeIdentity(cwd, fingerprint, runtime.Model), func(path string) string {
+				verdict := runs.EvaluateResume(checkpoint, runtimeIdentity(cwd, fingerprint, runtime.Model, toolRegistry.Signature()), func(path string) string {
 					return workspace.Freshness(cwd, path)
 				})
 				resumeHint = runs.ResumeHint(verdict)
@@ -163,11 +163,12 @@ func run(ctx context.Context, argv []string) error {
 			return workspace.Freshness(cwd, path)
 		},
 		Checkpoint: checkpointWriter{
-			run:         run,
-			cwd:         cwd,
-			model:       runtime.Model,
-			fingerprint: fingerprint,
-			maxSteps:    agent.DefaultMaxSteps,
+			run:           run,
+			cwd:           cwd,
+			toolSignature: toolRegistry.Signature(),
+			model:         runtime.Model,
+			fingerprint:   fingerprint,
+			maxSteps:      agent.DefaultMaxSteps,
 		},
 	})
 	if isTerminal(os.Stdin) && isTerminal(os.Stdout) {
@@ -272,11 +273,12 @@ func isTerminal(file *os.File) bool {
 }
 
 // runtimeIdentity 是一次运行的运行时身份，用于检查点比对。
-func runtimeIdentity(cwd, fingerprint, model string) map[string]any {
+func runtimeIdentity(cwd, fingerprint, model, toolSignature string) map[string]any {
 	return map[string]any{
 		"cwd":                   cwd,
 		"workspace_fingerprint": fingerprint,
 		"model":                 model,
 		"max_steps":             agent.DefaultMaxSteps,
+		"tool_signature":        toolSignature,
 	}
 }
