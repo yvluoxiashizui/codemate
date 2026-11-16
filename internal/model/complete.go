@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // Complete 以单段 prompt 请求 OpenAI 兼容接口，返回纯文本应答。
@@ -16,6 +17,8 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	ctx, cancel := withTimeout(ctx, runtime.TimeoutSeconds)
+	defer cancel()
 
 	payload := map[string]any{
 		"model":    runtime.Model,
@@ -62,6 +65,14 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 	return data.Choices[0].Message.Content, nil
 }
 
+// withTimeout 给请求加上超时；未配置时沿用调用方的上下文。
+func withTimeout(ctx context.Context, seconds int) (context.Context, context.CancelFunc) {
+	if seconds <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, time.Duration(seconds)*time.Second)
+}
+
 // openAIResponse 是 OpenAI 兼容接口的应答片段。
 type openAIResponse struct {
 	Error struct {
@@ -86,6 +97,8 @@ func (a *Anthropic) Complete(ctx context.Context, prompt string) (string, error)
 	if err != nil {
 		return "", err
 	}
+	ctx, cancel := withTimeout(ctx, runtime.TimeoutSeconds)
+	defer cancel()
 
 	payload := map[string]any{
 		"model":      runtime.Model,

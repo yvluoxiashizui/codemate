@@ -13,6 +13,7 @@ type Settings struct {
 	Provider        string                     `json:"provider,omitempty"`
 	Model           string                     `json:"model,omitempty"`
 	MaxOutputTokens int                        `json:"maxOutputTokens,omitempty"`
+	TimeoutSeconds  int                        `json:"timeoutSeconds,omitempty"`
 	MCPServers      map[string]MCPServerConfig `json:"mcpServers,omitempty"`
 }
 
@@ -32,6 +33,7 @@ type Runtime struct {
 	AuthToken       string
 	APIKey          string
 	MaxOutputTokens int
+	TimeoutSeconds  int
 	MCPServers      map[string]MCPServerConfig
 	SourceSummary   string
 }
@@ -94,6 +96,12 @@ func LoadRuntime(cwd string) (Runtime, error) {
 	baseURL := firstNonEmpty(providerBaseURLEnv(provider, env), defaultBaseURL(provider))
 	authToken := providerAuthTokenEnv(provider, env)
 	apiKey := providerAPIKeyEnv(provider, env)
+	timeoutSeconds := settings.TimeoutSeconds
+	if raw := firstNonEmpty(os.Getenv("MINI_CODE_TIMEOUT"), env["MINI_CODE_TIMEOUT"]); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			timeoutSeconds = parsed
+		}
+	}
 	maxTokens := settings.MaxOutputTokens
 	if raw := firstNonEmpty(os.Getenv("MINI_CODE_MAX_OUTPUT_TOKENS"), env["MINI_CODE_MAX_OUTPUT_TOKENS"]); raw != "" {
 		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
@@ -115,6 +123,7 @@ func LoadRuntime(cwd string) (Runtime, error) {
 		AuthToken:       authToken,
 		APIKey:          apiKey,
 		MaxOutputTokens: maxTokens,
+		TimeoutSeconds:  timeoutSeconds,
 		MCPServers:      settings.MCPServers,
 		SourceSummary:   "config: " + SettingsPath() + " > " + ClaudeSettingsPath() + " > process.env",
 	}, nil
