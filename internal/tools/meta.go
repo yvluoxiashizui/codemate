@@ -30,10 +30,18 @@ const (
 
 // Meta 是一次工具执行的元数据。
 type Meta struct {
-	Status           string    `json:"tool_status"`
-	ErrorCode        string    `json:"tool_error_code,omitempty"`
-	RiskLevel        RiskLevel `json:"risk_level"`
-	ReadOnly         bool      `json:"read_only"`
-	AffectedPaths    []string  `json:"affected_paths,omitempty"`
-	WorkspaceChanged bool      `json:"workspace_changed"`
+	Status        string    `json:"tool_status"`
+	ErrorCode     string    `json:"tool_error_code,omitempty"`
+	RiskLevel     RiskLevel `json:"risk_level"`
+	ReadOnly      bool      `json:"read_only"`
+	AffectedPaths []string  `json:"affected_paths,omitempty"`
+	// SecurityEvent 标记这次调用触发了哪类安全拦截。
+	SecurityEvent    string `json:"security_event_type,omitempty"`
+	WorkspaceChanged bool   `json:"workspace_changed"`
 }
+
+// 安全事件类型，用于在事件流里区分拦截原因。
+const (
+	SecurityReadOnlyBlocked = "read_only_blocked"
+	SecurityToolNotAllowed  = "tool_not_allowed"
+)

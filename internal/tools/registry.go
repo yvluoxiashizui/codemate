@@ -162,14 +162,14 @@ func (r *Registry) Execute(ctx context.Context, toolName string, input any, tool
 		return Result{
 			OK:     false,
 			Output: "Tool " + toolName + " is not allowed in this run",
-			Meta:   Meta{Status: StatusReject, ErrorCode: CodeToolNotAllowed, RiskLevel: RiskHigh},
+			Meta:   Meta{Status: StatusReject, ErrorCode: CodeToolNotAllowed, RiskLevel: RiskHigh, SecurityEvent: SecurityToolNotAllowed},
 		}
 	}
 	if toolContext.Policy.ReadOnly && !definition.ReadOnly {
 		return Result{
 			OK:     false,
 			Output: "Tool " + toolName + " is blocked: this run is read-only",
-			Meta:   Meta{Status: StatusReject, ErrorCode: CodeReadOnly, RiskLevel: definition.Risk, ReadOnly: true},
+			Meta:   Meta{Status: StatusReject, ErrorCode: CodeReadOnly, RiskLevel: definition.Risk, ReadOnly: true, SecurityEvent: SecurityReadOnlyBlocked},
 		}
 	}
 

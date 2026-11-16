@@ -267,6 +267,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 				"output_chars":      len(result.Output),
 				"tool_status":       result.Meta.Status,
 				"tool_error_code":   result.Meta.ErrorCode,
+				"security_event":    result.Meta.SecurityEvent,
 				"risk_level":        string(result.Meta.RiskLevel),
 				"read_only":         result.Meta.ReadOnly,
 				"workspace_changed": result.Meta.WorkspaceChanged,
