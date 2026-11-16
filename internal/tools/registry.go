@@ -51,6 +51,8 @@ type Context struct {
 	CWD        string
 	Permission PermissionManager
 	Policy     Policy
+	Depth      int
+	MaxDepth   int
 	// Spawn 派生一个只读子 agent 执行任务并返回结论。
 	Spawn    func(ctx context.Context, task string, maxSteps int) (string, error)
 	affected *[]string

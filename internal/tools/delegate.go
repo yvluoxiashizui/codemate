@@ -57,5 +57,8 @@ func validateDelegate(raw json.RawMessage, tc Context) error {
 	if strings.TrimSpace(input.Task) == "" {
 		return errors.New("task must not be empty")
 	}
+	if tc.MaxDepth > 0 && tc.Depth >= tc.MaxDepth {
+		return errors.New("delegate depth exceeded")
+	}
 	return nil
 }

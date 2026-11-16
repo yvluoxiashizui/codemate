@@ -72,6 +72,27 @@ func TestDelegateRunsChildReadOnly(t *testing.T) {
 	}
 }
 
+func TestDelegateDepthLimit(t *testing.T) {
+	registry := tools.Builtins(t.TempDir(), nil, nil)
+	result := registry.Execute(context.Background(), "delegate", map[string]any{
+		"task": "再委派一次",
+	}, tools.Context{
+		CWD:      t.TempDir(),
+		Depth:    2,
+		MaxDepth: 2,
+		Spawn: func(context.Context, string, int) (string, error) {
+			return "", nil
+		},
+	})
+
+	if result.OK {
+		t.Fatal("超过深度上限应被拒绝")
+	}
+	if result.Meta.ErrorCode != tools.CodeInvalidInput {
+		t.Fatalf("error code = %s", result.Meta.ErrorCode)
+	}
+}
+
 func TestDelegateRejectsEmptyTask(t *testing.T) {
 	registry := tools.Builtins(t.TempDir(), nil, nil)
 	result := registry.Execute(context.Background(), "delegate", map[string]any{

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -15,6 +16,9 @@ import (
 const (
 	// DefaultMaxSteps 是一次任务允许的工具步数上限。
 	DefaultMaxSteps = 24
+
+	// DefaultMaxDepth 是子 agent 允许的最大嵌套深度。
+	DefaultMaxDepth = 2
 )
 
 const (
@@ -61,6 +65,8 @@ type RunArgs struct {
 	CWD        string
 	Permission tools.PermissionManager
 	MaxSteps   int
+	Depth      int
+	MaxDepth   int
 	ReadOnly   bool
 	Allowed    []string
 	Options    ctxpkg.Options
@@ -86,6 +92,10 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 	if maxSteps <= 0 {
 		maxSteps = DefaultMaxSteps
 	}
+	maxDepth := args.MaxDepth
+	if maxDepth <= 0 {
+		maxDepth = DefaultMaxDepth
+	}
 	maxAttempts := maxSteps * 3
 	if maxSteps+4 > maxAttempts {
 		maxAttempts = maxSteps + 4
@@ -107,7 +117,11 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 	})
 
 	spawn := func(ctx context.Context, task string, childSteps int) (string, error) {
+		if args.Depth >= maxDepth {
+			return "", errors.New("delegate depth exceeded")
+		}
 		child := args
+		child.Depth = args.Depth + 1
 		child.MaxSteps = childSteps
 		child.ReadOnly = true
 		child.Allowed = nil
@@ -210,6 +224,8 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 				CWD:        args.CWD,
 				Permission: args.Permission,
 				Policy:     tools.Policy{ReadOnly: args.ReadOnly, Allowed: args.Allowed},
+				Depth:      args.Depth,
+				MaxDepth:   maxDepth,
 				Spawn:      spawn,
 			})
 			history = append(history, ctxpkg.HistoryEntry{
