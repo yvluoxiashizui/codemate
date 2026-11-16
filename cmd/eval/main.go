@@ -20,6 +20,8 @@ func main() {
 	out := flag.String("out", "", "把结果写成 JSON 的路径")
 	cwd := flag.String("cwd", "", "读取模型配置的目录，默认当前目录")
 	benchmarkPath := flag.String("benchmark", "", "任务集 JSON 路径，留空时用内置任务集")
+	ablate := flag.String("ablate", "", "关掉指定开关做消融对照，取值 memory、relevant_memory、context_reduction、prompt_cache")
+	stress := flag.Bool("stress", false, "测量不同历史长度下的上下文装配")
 	flag.Parse()
 
 	workdir := *cwd
@@ -68,6 +70,28 @@ func main() {
 				mark, result.Case, result.Attempts, result.ToolSteps, result.PromptChars, result.Reason)
 		},
 	}
+	if *ablate != "" {
+		report := runner.Ablate(context.Background(), cases, *ablate)
+		fmt.Printf("消融 %s\n", report.Feature)
+		fmt.Printf("基线   通过率 %.1f%%  prompt %.0f 字符\n", report.Baseline.PassRate*100, report.Baseline.AvgPromptChars)
+		fmt.Printf("已关闭 通过率 %.1f%%  prompt %.0f 字符\n", report.Disabled.PassRate*100, report.Disabled.AvgPromptChars)
+		fmt.Printf("差值   prompt %+.0f 字符  通过率 %+.1f 个百分点\n", report.PromptCharsDelta(), report.PassRateDelta()*100)
+		return
+	}
+
+	if *stress {
+		points := eval.MeasureStress("prefix", []int{0, 4, 12, 24, 48}, 12000)
+		fmt.Printf("%-8s %-12s %-10s %s\n", "历史条数", "prompt", "收缩次数", "超预算")
+		for _, point := range points {
+			over := "no"
+			if point.OverBudget {
+				over = "yes"
+			}
+			fmt.Printf("%-8d %-12d %-10d %s\n", point.Entries, point.PromptChars, point.Reductions, over)
+		}
+		return
+	}
+
 	results := runner.RunCases(context.Background(), cases)
 	summary := eval.Summarize(results)
 
