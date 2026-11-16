@@ -32,6 +32,7 @@ func Builtins(cwd string, permission PermissionManager, skillLoader SkillLoader)
 		patchFileTool(),
 		runCommandTool(),
 		loadSkillTool(skillLoader),
+		delegateTool(),
 	}
 	return NewRegistry(definitions, Metadata{})
 }

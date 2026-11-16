@@ -106,6 +106,20 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 		"user_request": args.UserInput,
 	})
 
+	spawn := func(ctx context.Context, task string, childSteps int) (string, error) {
+		child := args
+		child.MaxSteps = childSteps
+		child.ReadOnly = true
+		child.Allowed = nil
+		child.UserInput = task
+		child.History = []ctxpkg.HistoryEntry{{
+			Role: ctxpkg.RoleAssistant,
+			Text: clipText(ctxpkg.RenderHistory(history, 0), 300),
+		}}
+		result := Run(ctx, child)
+		return "delegate_result:\n" + result.State.FinalAnswer, nil
+	}
+
 	toolSteps := 0
 	attempts := 0
 	touched := make([]string, 0, 8)
@@ -196,6 +210,7 @@ func Run(ctx context.Context, args RunArgs) RunResult {
 				CWD:        args.CWD,
 				Permission: args.Permission,
 				Policy:     tools.Policy{ReadOnly: args.ReadOnly, Allowed: args.Allowed},
+				Spawn:      spawn,
 			})
 			history = append(history, ctxpkg.HistoryEntry{
 				Role:     ctxpkg.RoleTool,
@@ -378,4 +393,12 @@ func summarizeOutput(output string) string {
 		return text
 	}
 	return text[:limit] + "…"
+}
+
+// clipText 截断文本，用于给子 agent 的上下文摘要。
+func clipText(text string, limit int) string {
+	if limit <= 0 || len(text) <= limit {
+		return text
+	}
+	return text[:limit] + "..."
 }

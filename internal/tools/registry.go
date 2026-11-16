@@ -51,7 +51,9 @@ type Context struct {
 	CWD        string
 	Permission PermissionManager
 	Policy     Policy
-	affected   *[]string
+	// Spawn 派生一个只读子 agent 执行任务并返回结论。
+	Spawn    func(ctx context.Context, task string, maxSteps int) (string, error)
+	affected *[]string
 }
 
 // ReportAffected 记录本次调用改动或读取的文件路径。
