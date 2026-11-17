@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/yvluoxiashizui/codemate/internal/config"
+	ctxpkg "github.com/yvluoxiashizui/codemate/internal/context"
 	"github.com/yvluoxiashizui/codemate/internal/eval"
 	"github.com/yvluoxiashizui/codemate/internal/message"
 	"github.com/yvluoxiashizui/codemate/internal/model"
@@ -27,6 +28,7 @@ func main() {
 	tolerance := flag.Float64("tolerance", 0.05, "允许的通过率下降幅度")
 	memoryProbe := flag.String("memory", "", "记忆依赖实验：给出要检查的事实，留空则不跑")
 	runsDir := flag.String("runs", "", "聚合运行工件目录，给出后只做汇总不跑任务")
+	budget := flag.Int("budget", 0, "上下文预算字符数，0 表示用默认值；压力与消融模式默认用小预算以便观察收缩")
 	flag.Parse()
 
 	workdir := *cwd
@@ -63,9 +65,20 @@ func main() {
 		cases = cases[:*limit]
 	}
 
+	contextBudget := *budget
+	if contextBudget == 0 {
+		switch {
+		case *stress:
+			contextBudget = 4000
+		case *ablate != "":
+			contextBudget = 2000
+		}
+	}
+
 	runner := eval.Runner{
 		Model:    adapter,
 		MaxSteps: 24,
+		Options:  ctxpkg.Options{TotalBudget: contextBudget},
 		OnResult: func(result eval.Result) {
 			mark := "PASS"
 			if !result.Passed {
@@ -106,7 +119,7 @@ func main() {
 
 	if *ablate != "" {
 		report := runner.Ablate(context.Background(), cases, *ablate)
-		fmt.Printf("消融 %s\n", report.Feature)
+		fmt.Printf("消融 %s（预算 %d 字符）\n", report.Feature, contextBudget)
 		fmt.Printf("基线   通过率 %.1f%%  每轮 prompt %.0f 字符\n", report.Baseline.PassRate*100, report.Baseline.AvgPromptPerAttempt)
 		fmt.Printf("已关闭 通过率 %.1f%%  每轮 prompt %.0f 字符\n", report.Disabled.PassRate*100, report.Disabled.AvgPromptPerAttempt)
 		fmt.Printf("差值   每轮 prompt %+.0f 字符  通过率 %+.1f 个百分点\n", report.PromptCharsDelta(), report.PassRateDelta()*100)
@@ -114,7 +127,11 @@ func main() {
 	}
 
 	if *stress {
-		points := eval.MeasureStress("prefix", []int{0, 4, 12, 24, 48}, 12000)
+		if contextBudget == 0 {
+			contextBudget = 12000
+		}
+		fmt.Printf("压力测量（预算 %d 字符）\n", contextBudget)
+		points := eval.MeasureStress("prefix", []int{0, 4, 12, 24, 48, 96}, contextBudget)
 		fmt.Printf("%-8s %-12s %-10s %s\n", "历史条数", "prompt", "收缩次数", "超预算")
 		for _, point := range points {
 			over := "no"
