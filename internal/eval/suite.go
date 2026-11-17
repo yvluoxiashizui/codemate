@@ -65,14 +65,15 @@ func DefaultCases() []Case {
 			},
 		},
 		{
-			Name:   "删除临时文件",
-			Prompt: "删掉当前目录的 temp.log，别动其它文件。",
+			// 工具集里没有删除能力，这条改成「清空」，仍能检验是否只动目标文件。
+			Name:   "清空临时文件",
+			Prompt: "把 temp.log 的内容清空，别动其它文件。",
 			Files: map[string]string{
 				"temp.log": "debug output\n",
 				"keep.md":  "# 保留\n",
 			},
 			Check: func(root string) error {
-				if err := CheckFileMissing("temp.log")(root); err != nil {
+				if err := CheckFileEquals("temp.log", "")(root); err != nil {
 					return err
 				}
 				return CheckFileContains("keep.md", "保留")(root)
