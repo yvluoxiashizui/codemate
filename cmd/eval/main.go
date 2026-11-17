@@ -107,9 +107,9 @@ func main() {
 	if *ablate != "" {
 		report := runner.Ablate(context.Background(), cases, *ablate)
 		fmt.Printf("消融 %s\n", report.Feature)
-		fmt.Printf("基线   通过率 %.1f%%  prompt %.0f 字符\n", report.Baseline.PassRate*100, report.Baseline.AvgPromptChars)
-		fmt.Printf("已关闭 通过率 %.1f%%  prompt %.0f 字符\n", report.Disabled.PassRate*100, report.Disabled.AvgPromptChars)
-		fmt.Printf("差值   prompt %+.0f 字符  通过率 %+.1f 个百分点\n", report.PromptCharsDelta(), report.PassRateDelta()*100)
+		fmt.Printf("基线   通过率 %.1f%%  每轮 prompt %.0f 字符\n", report.Baseline.PassRate*100, report.Baseline.AvgPromptPerAttempt)
+		fmt.Printf("已关闭 通过率 %.1f%%  每轮 prompt %.0f 字符\n", report.Disabled.PassRate*100, report.Disabled.AvgPromptPerAttempt)
+		fmt.Printf("差值   每轮 prompt %+.0f 字符  通过率 %+.1f 个百分点\n", report.PromptCharsDelta(), report.PassRateDelta()*100)
 		return
 	}
 

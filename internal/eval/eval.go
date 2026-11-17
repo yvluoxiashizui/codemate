@@ -39,13 +39,16 @@ type Result struct {
 
 // Summary 是一批任务的聚合指标。
 type Summary struct {
-	Total           int
-	Passed          int
-	PassRate        float64
-	AvgAttempts     float64
-	AvgToolSteps    float64
-	AvgPromptChars  float64
-	ToolFailureRate float64
+	Total          int
+	Passed         int
+	PassRate       float64
+	AvgAttempts    float64
+	AvgToolSteps   float64
+	AvgPromptChars float64
+	// AvgPromptPerAttempt 是每次模型请求的平均 prompt 字符数。
+	// 对比不同配置时用它，可以排除轮次多少对总量的影响。
+	AvgPromptPerAttempt float64
+	ToolFailureRate     float64
 }
 
 // Runner 用给定的模型与工具跑评测任务。
@@ -152,6 +155,9 @@ func Summarize(results []Result) Summary {
 	summary.AvgAttempts = float64(attempts) / float64(summary.Total)
 	summary.AvgToolSteps = float64(steps) / float64(summary.Total)
 	summary.AvgPromptChars = float64(promptChars) / float64(summary.Total)
+	if attempts > 0 {
+		summary.AvgPromptPerAttempt = float64(promptChars) / float64(attempts)
+	}
 	if steps > 0 {
 		summary.ToolFailureRate = float64(failures) / float64(steps)
 	}

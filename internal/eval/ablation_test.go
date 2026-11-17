@@ -59,8 +59,8 @@ func TestBaselineFeaturesDefaults(t *testing.T) {
 
 func TestAblationDeltas(t *testing.T) {
 	ablation := Ablation{
-		Baseline: Summary{PassRate: 0.8, AvgPromptChars: 1000},
-		Disabled: Summary{PassRate: 0.5, AvgPromptChars: 1400},
+		Baseline: Summary{PassRate: 0.8, AvgPromptPerAttempt: 1000},
+		Disabled: Summary{PassRate: 0.5, AvgPromptPerAttempt: 1400},
 	}
 	if ablation.PromptCharsDelta() != 400 {
 		t.Fatalf("prompt 差 = %v", ablation.PromptCharsDelta())

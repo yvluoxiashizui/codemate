@@ -13,9 +13,10 @@ type Ablation struct {
 	Disabled Summary
 }
 
-// PromptCharsDelta 返回关闭后相对基线的 prompt 字符数变化，负值表示变短。
+// PromptCharsDelta 返回关闭后每次请求的 prompt 字符数变化，负值表示变短。
+// 用每轮口径而不是总量，避免轮次差异干扰对比。
 func (a Ablation) PromptCharsDelta() float64 {
-	return a.Disabled.AvgPromptChars - a.Baseline.AvgPromptChars
+	return a.Disabled.AvgPromptPerAttempt - a.Baseline.AvgPromptPerAttempt
 }
 
 // PassRateDelta 返回关闭后通过率的变化，负值表示变差。

@@ -110,6 +110,9 @@ func SummarizeRuns(all []RunMetrics) Summary {
 	summary.AvgAttempts = float64(attempts) / float64(summary.Total)
 	summary.AvgToolSteps = float64(steps) / float64(summary.Total)
 	summary.AvgPromptChars = float64(promptChars) / float64(summary.Total)
+	if attempts > 0 {
+		summary.AvgPromptPerAttempt = float64(promptChars) / float64(attempts)
+	}
 	if steps > 0 {
 		summary.ToolFailureRate = float64(failures) / float64(steps)
 	}
