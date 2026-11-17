@@ -1,5 +1,12 @@
 package eval
 
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
 // DefaultCases 是随仓库提供的固定任务集。
 // 每条任务都能用工作区结果判定，不依赖模型自述。
 func DefaultCases() []Case {
@@ -23,12 +30,25 @@ func DefaultCases() []Case {
 		},
 		{
 			Name:   "按内容定位再修改",
-			Prompt: "找到 handler.go 里 TODO 那一行，把 TODO 换成实际实现说明。",
+			Prompt: "handler.go 里有一行 TODO 注释，把它替换成说明这个函数做什么的注释。",
 			Files: map[string]string{
 				"handler.go": "package api\n\n// TODO: 实现\nfunc Handle() {}\n",
 				"readme.md":  "# demo\n",
 			},
-			Check: CheckFileContains("handler.go", "实际实现"),
+			Check: func(root string) error {
+				payload, err := os.ReadFile(filepath.Join(root, "handler.go"))
+				if err != nil {
+					return err
+				}
+				content := string(payload)
+				if strings.Contains(content, "TODO") {
+					return fmt.Errorf("TODO 注释仍然存在")
+				}
+				if !strings.Contains(content, "func Handle()") {
+					return fmt.Errorf("函数定义被改坏了")
+				}
+				return nil
+			},
 		},
 		{
 			Name:   "不应删除无关文件",
