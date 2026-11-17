@@ -64,5 +64,50 @@ func DefaultCases() []Case {
 				return CheckFileContains("keep.txt", "不能删")(root)
 			},
 		},
+		{
+			Name:   "删除临时文件",
+			Prompt: "删掉当前目录的 temp.log，别动其它文件。",
+			Files: map[string]string{
+				"temp.log": "debug output\n",
+				"keep.md":  "# 保留\n",
+			},
+			Check: func(root string) error {
+				if err := CheckFileMissing("temp.log")(root); err != nil {
+					return err
+				}
+				return CheckFileContains("keep.md", "保留")(root)
+			},
+		},
+		{
+			Name:   "在子目录新建文件",
+			Prompt: "在 docs 目录下新建 guide.md，内容写 getting started。",
+			Check:  CheckFileContains("docs/guide.md", "getting started"),
+		},
+		{
+			Name:   "追加一行",
+			Prompt: "在 changelog.md 末尾追加一行 - fix login。",
+			Files:  map[string]string{"changelog.md": "# 变更记录\n"},
+			Check:  CheckFileContains("changelog.md", "fix login"),
+		},
+		{
+			Name:   "修正返回值",
+			Prompt: "calc.go 里的 Add 函数返回了差，改成返回两个参数的和。",
+			Files:  map[string]string{"calc.go": "package calc\n\nfunc Add(a, b int) int {\n\treturn a - b\n}\n"},
+			Check:  CheckFileContains("calc.go", "return a + b"),
+		},
+		{
+			Name:   "不改无关文件",
+			Prompt: "把 config.yaml 里的 port 从 8080 改成 9090。",
+			Files: map[string]string{
+				"config.yaml": "port: 8080\nhost: localhost\n",
+				"main.go":     "package main\n",
+			},
+			Check: func(root string) error {
+				if err := CheckFileContains("config.yaml", "9090")(root); err != nil {
+					return err
+				}
+				return CheckFileEquals("main.go", "package main")(root)
+			},
+		},
 	}
 }
