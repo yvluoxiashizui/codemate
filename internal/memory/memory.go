@@ -28,8 +28,11 @@ type FileSummary struct {
 
 // Note 是一条过程笔记。
 type Note struct {
-	Text      string `json:"text"`
-	CreatedAt string `json:"created_at"`
+	Text      string   `json:"text"`
+	CreatedAt string   `json:"created_at"`
+	Tags      []string `json:"tags,omitempty"`
+	Source    string   `json:"source,omitempty"`
+	Index     int      `json:"index,omitempty"`
 }
 
 // State 是被持久化的记忆内容。
@@ -122,16 +125,24 @@ func (s *Store) RememberFile(path, summary, freshness string) {
 
 // AppendNote 追加一条过程笔记。
 func (s *Store) AppendNote(text string) {
+	s.AppendNoteWithMeta(Note{Text: text})
+}
+
+// AppendNoteWithMeta 追加一条带标签与来源的笔记。
+func (s *Store) AppendNoteWithMeta(note Note) {
 	if s == nil {
 		return
 	}
-	text = clip(strings.TrimSpace(text), MaxNoteChars)
+	text := clip(strings.TrimSpace(note.Text), MaxNoteChars)
 	if text == "" {
 		return
 	}
 	s.state.Notes = append(s.state.Notes, Note{
 		Text:      text,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		Tags:      note.Tags,
+		Source:    note.Source,
+		Index:     len(s.state.Notes),
 	})
 	if len(s.state.Notes) > MaxNotes {
 		s.state.Notes = s.state.Notes[len(s.state.Notes)-MaxNotes:]
@@ -164,23 +175,48 @@ func (s *Store) Retrieval(query string, limit int) []Note {
 		return nil
 	}
 	type scored struct {
-		note  Note
-		score int
+		note       Note
+		tagMatch   int
+		keywordHit int
 	}
 	ranked := make([]scored, 0, len(s.state.Notes))
 	for _, note := range s.state.Notes {
-		score := 0
-		lower := strings.ToLower(note.Text)
+		tagMatch := 0
+		tags := make(map[string]bool, len(note.Tags))
+		for _, tag := range note.Tags {
+			tags[strings.ToLower(tag)] = true
+		}
 		for _, token := range tokens {
-			if strings.Contains(lower, token) {
-				score++
+			if tags[token] {
+				tagMatch = 1
+				break
 			}
 		}
-		if score > 0 {
-			ranked = append(ranked, scored{note: note, score: score})
+
+		lower := strings.ToLower(note.Text + " " + note.Source)
+		keywordHit := 0
+		for _, token := range tokens {
+			if strings.Contains(lower, token) {
+				keywordHit++
+			}
 		}
+		if tagMatch == 0 && keywordHit == 0 {
+			continue
+		}
+		ranked = append(ranked, scored{note: note, tagMatch: tagMatch, keywordHit: keywordHit})
 	}
-	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].tagMatch != ranked[j].tagMatch {
+			return ranked[i].tagMatch > ranked[j].tagMatch
+		}
+		if ranked[i].keywordHit != ranked[j].keywordHit {
+			return ranked[i].keywordHit > ranked[j].keywordHit
+		}
+		if ranked[i].note.CreatedAt != ranked[j].note.CreatedAt {
+			return ranked[i].note.CreatedAt > ranked[j].note.CreatedAt
+		}
+		return ranked[i].note.Index > ranked[j].note.Index
+	})
 	if limit > 0 && len(ranked) > limit {
 		ranked = ranked[:limit]
 	}
@@ -190,6 +226,9 @@ func (s *Store) Retrieval(query string, limit int) []Note {
 	}
 	return out
 }
+
+// MemoryRenderBudget 是「记忆」一节渲染的字符上限。
+const MemoryRenderBudget = 1200
 
 // Render 把记忆渲染成上下文的「记忆」一节。
 func (s *Store) Render() string {
@@ -211,7 +250,7 @@ func (s *Store) Render() string {
 	if len(lines) == 0 {
 		return ""
 	}
-	return strings.Join(lines, "\n")
+	return clip(strings.Join(lines, "\n"), MemoryRenderBudget)
 }
 
 // RenderNotes 把召回的笔记渲染成「相关笔记」一节。
