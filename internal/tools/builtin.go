@@ -27,8 +27,6 @@ func Builtins(cwd string, permission PermissionManager, skillLoader SkillLoader)
 		searchTool(),
 		readFileTool(),
 		writeFileTool(),
-		modifyFileTool(),
-		editFileTool(),
 		patchFileTool(),
 		runShellTool(),
 		loadSkillTool(skillLoader),
@@ -180,10 +178,6 @@ func writeFileTool() Definition {
 	return reviewedWriteTool("write_file", "Write a UTF-8 text file relative to the workspace root.")
 }
 
-func modifyFileTool() Definition {
-	return reviewedWriteTool("modify_file", "Replace a file with reviewed content so the user can approve the diff first.")
-}
-
 func reviewedWriteTool(name, description string) Definition {
 	return Definition{
 		Name:        name,
@@ -206,45 +200,6 @@ func reviewedWriteTool(name, description string) Definition {
 				return Error(err.Error())
 			}
 			return fromReview(filereview.ApplyReviewedChange(ctx, tc.Permission, input.Path, target, input.Content))
-		},
-	}
-}
-
-func editFileTool() Definition {
-	return Definition{
-		Name:        "edit_file",
-		Risk:        RiskHigh,
-		ReadOnly:    false,
-		Description: "Edit a text file by replacing exact text.",
-		InputSchema: objectSchema(map[string]any{"path": map[string]any{"type": "string"}, "search": map[string]any{"type": "string"}, "replace": map[string]any{"type": "string"}, "replaceAll": map[string]any{"type": "boolean"}}, []string{"path", "search", "replace"}),
-		Run: func(ctx context.Context, raw json.RawMessage, tc Context) Result {
-			var input struct {
-				Path       string `json:"path"`
-				Search     string `json:"search"`
-				Replace    string `json:"replace"`
-				ReplaceAll bool   `json:"replaceAll"`
-			}
-			if err := json.Unmarshal(raw, &input); err != nil {
-				return Error(err.Error())
-			}
-			tc.ReportAffected(input.Path)
-			target, err := workspace.Resolve(ctx, tc.CWD, input.Path, "write", tc.Permission)
-			if err != nil {
-				return Error(err.Error())
-			}
-			bytes, err := os.ReadFile(target)
-			if err != nil {
-				return Error(err.Error())
-			}
-			original := string(bytes)
-			if !strings.Contains(original, input.Search) {
-				return Error("Text not found in " + input.Path)
-			}
-			next := strings.Replace(original, input.Search, input.Replace, 1)
-			if input.ReplaceAll {
-				next = strings.ReplaceAll(original, input.Search, input.Replace)
-			}
-			return fromReview(filereview.ApplyReviewedChange(ctx, tc.Permission, input.Path, target, next))
 		},
 	}
 }

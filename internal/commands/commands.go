@@ -29,7 +29,7 @@ var SlashCommands = []SlashCommand{
 	{"/read", "/read <path>", "Read a file directly."},
 	{"/write", "/write <path>::<content>", "Write a file directly."},
 	{"/modify", "/modify <path>::<content>", "Replace a file with a reviewable diff."},
-	{"/edit", "/edit <path>::<search>::<replace>", "Edit a file by exact replacement."},
+	{"/patch", "/patch <path>::<old>::<new>", "Replace one exact piece of text in a file."},
 	{"/patch", "/patch <path>::<search1>::<replace1>::<search2>::<replace2>...", "Apply multiple replacements."},
 	{"/cmd", "/cmd [cwd::]<command> [args...]", "Run an allowed development command directly."},
 }
@@ -80,7 +80,7 @@ func ParseShortcut(input string) (message.ToolCall, bool) {
 		name := "write_file"
 		prefix := "/write "
 		if strings.HasPrefix(input, "/modify ") {
-			name = "modify_file"
+			name = "write_file"
 			prefix = "/modify "
 		}
 		parts := strings.SplitN(strings.TrimPrefix(input, prefix), "::", 2)
@@ -88,13 +88,6 @@ func ParseShortcut(input string) (message.ToolCall, bool) {
 			return message.ToolCall{}, false
 		}
 		return tool(name, map[string]any{"path": strings.TrimSpace(parts[0]), "content": parts[1]}), true
-	}
-	if strings.HasPrefix(input, "/edit ") {
-		parts := strings.SplitN(strings.TrimPrefix(input, "/edit "), "::", 3)
-		if len(parts) != 3 {
-			return message.ToolCall{}, false
-		}
-		return tool("edit_file", map[string]any{"path": strings.TrimSpace(parts[0]), "search": parts[1], "replace": parts[2]}), true
 	}
 	if strings.HasPrefix(input, "/patch ") {
 		parts := strings.SplitN(strings.TrimPrefix(input, "/patch "), "::", 3)

@@ -20,23 +20,6 @@ func TestReadFileSupportsOffsetLimit(t *testing.T) {
 	}
 }
 
-func TestEditFileReplacesText(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "a.txt")
-	if err := os.WriteFile(target, []byte("hello world"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	reg := Builtins(dir, nil, nil)
-	result := reg.Execute(context.Background(), "edit_file", map[string]any{"path": "a.txt", "search": "world", "replace": "mini"}, Context{CWD: dir})
-	if !result.OK {
-		t.Fatalf("unexpected result: %#v", result)
-	}
-	content, _ := os.ReadFile(target)
-	if string(content) != "hello mini" {
-		t.Fatalf("unexpected content: %q", string(content))
-	}
-}
-
 func TestPatchFileRequiresOldTextWithNewText(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello world"), 0o644); err != nil {

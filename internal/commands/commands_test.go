@@ -3,11 +3,11 @@ package commands
 import "testing"
 
 func TestParseShortcut(t *testing.T) {
-	call, ok := ParseShortcut("/edit a.txt::old::new")
+	call, ok := ParseShortcut("/patch a.txt::old::new")
 	if !ok {
 		t.Fatal("expected shortcut")
 	}
-	if call.ToolName != "edit_file" {
+	if call.ToolName != "patch_file" {
 		t.Fatalf("unexpected call: %#v", call)
 	}
 }

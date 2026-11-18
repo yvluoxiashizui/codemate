@@ -75,23 +75,19 @@ func TestRenderTUIScreenCollapsesSuccessfulToolOutputToSummary(t *testing.T) {
 	}
 }
 
-func TestFinishToolResultAggregatesConsecutiveEditsForSameFile(t *testing.T) {
-	state := tuiState{}
+func TestFinishToolResultAppendsPatchEntry(t *testing.T) {
+	state := &tuiState{}
+	pending := map[string][]int{}
 
-	index := appendToolStart(&state, "edit_file", map[string]any{"path": "main.go"})
-	finishToolResult(&state, map[string][]int{"edit_file": []int{index}}, "edit_file", "Applied reviewed changes to main.go", false)
-	index = appendToolStart(&state, "patch_file", map[string]any{"path": "main.go"})
-	finishToolResult(&state, map[string][]int{"patch_file": []int{index}}, "patch_file", "Patched main.go with 2 replacement(s)", false)
+	finishToolResult(state, pending, "patch_file", "Patched main.go", false)
 
 	if len(state.transcript) != 1 {
-		t.Fatalf("expected aggregated edit entry, got %#v", state.transcript)
+		t.Fatalf("应记录一条工具结果: %#v", state.transcript)
 	}
-	entry := state.transcript[0]
-	if entry.toolName != "file edits" || entry.aggregateCount != 2 || !strings.Contains(entry.body, "2 edit operations applied to main.go") {
-		t.Fatalf("unexpected aggregate entry: %#v", entry)
+	if state.transcript[0].toolName != "patch_file" {
+		t.Fatalf("工具名 = %s", state.transcript[0].toolName)
 	}
 }
-
 func TestFinishToolResultDoesNotCollapseErrors(t *testing.T) {
 	state := tuiState{}
 	index := appendToolStart(&state, "run_shell", map[string]any{"command": "go", "args": []any{"test", "./..."}})

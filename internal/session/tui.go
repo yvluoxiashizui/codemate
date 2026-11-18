@@ -697,7 +697,7 @@ func summarizeSuccessfulToolEntry(entry transcriptEntry) string {
 
 func isEditTool(toolName string) bool {
 	switch toolName {
-	case "write_file", "modify_file", "edit_file", "patch_file":
+	case "write_file", "patch_file":
 		return true
 	default:
 		return false
