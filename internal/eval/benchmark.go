@@ -106,7 +106,9 @@ func validateCheck(name string, check BenchmarkCheck) error {
 		return fmt.Errorf("任务 %s: %w", name, err)
 	}
 	switch check.Type {
-	case CheckTypeFileEquals, CheckTypeFileContains, CheckTypeFileNotContains:
+	case CheckTypeFileEquals:
+		// 期望内容为空是合法场景，例如「把文件清空」。
+	case CheckTypeFileContains, CheckTypeFileNotContains:
 		if strings.TrimSpace(check.Text) == "" {
 			return fmt.Errorf("任务 %s 的判定缺少期望文本", name)
 		}
