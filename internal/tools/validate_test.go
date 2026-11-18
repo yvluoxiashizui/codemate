@@ -27,7 +27,7 @@ func TestValidateRejectsEmptyPattern(t *testing.T) {
 	root := t.TempDir()
 	registry := Builtins(root, nil, nil)
 
-	result := registry.Execute(context.Background(), "grep_files", map[string]any{"pattern": "  "}, Context{CWD: root})
+	result := registry.Execute(context.Background(), "search", map[string]any{"pattern": "  "}, Context{CWD: root})
 	if result.OK {
 		t.Fatal("空检索词应被拒绝")
 	}
@@ -40,7 +40,7 @@ func TestValidateRejectsOutOfRangeTimeout(t *testing.T) {
 	root := t.TempDir()
 	registry := Builtins(root, nil, nil)
 
-	result := registry.Execute(context.Background(), "run_command", map[string]any{"command": "go", "timeout": 9999}, Context{CWD: root})
+	result := registry.Execute(context.Background(), "run_shell", map[string]any{"command": "go", "timeout": 9999}, Context{CWD: root})
 	if result.OK {
 		t.Fatal("超时越界应被拒绝")
 	}

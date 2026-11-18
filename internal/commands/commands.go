@@ -70,7 +70,7 @@ func ParseShortcut(input string) (message.ToolCall, bool) {
 		if len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
 			payload["path"] = strings.TrimSpace(parts[1])
 		}
-		return tool("grep_files", payload), true
+		return tool("search", payload), true
 	}
 	if strings.HasPrefix(input, "/read ") {
 		path := strings.TrimSpace(strings.TrimPrefix(input, "/read "))
@@ -122,7 +122,7 @@ func ParseShortcut(input string) (message.ToolCall, bool) {
 		if commandCWD != "" {
 			input["cwd"] = commandCWD
 		}
-		return tool("run_command", input), true
+		return tool("run_shell", input), true
 	}
 	return message.ToolCall{}, false
 }

@@ -4,10 +4,10 @@ import "github.com/yvluoxiashizui/codemate/internal/tools"
 
 // riskyTools 是需要审批的工具集合，用于在提示词里标注。
 var riskyTools = map[string]bool{
-	"write_file":  true,
-	"edit_file":   true,
-	"patch_file":  true,
-	"run_command": true,
+	"write_file": true,
+	"edit_file":  true,
+	"patch_file": true,
+	"run_shell":  true,
 }
 
 // ToolSpecs 把注册表里的工具转成提示词描述。

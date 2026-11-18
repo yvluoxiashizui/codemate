@@ -96,7 +96,7 @@ func TestRenderTranscriptShowsToolCollapsePhaseAndDefaultSummary(t *testing.T) {
 	collapsing := RenderTranscript([]TranscriptEntry{{
 		ID:            1,
 		Kind:          EntryTool,
-		ToolName:      "run_command",
+		ToolName:      "run_shell",
 		Status:        ToolSuccess,
 		Body:          "long output",
 		CollapsePhase: 2,
@@ -108,7 +108,7 @@ func TestRenderTranscriptShowsToolCollapsePhaseAndDefaultSummary(t *testing.T) {
 	collapsed := RenderTranscript([]TranscriptEntry{{
 		ID:        2,
 		Kind:      EntryTool,
-		ToolName:  "run_command",
+		ToolName:  "run_shell",
 		Status:    ToolSuccess,
 		Collapsed: true,
 	}}, 0, 20)

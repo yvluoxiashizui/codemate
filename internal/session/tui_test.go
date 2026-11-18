@@ -94,8 +94,8 @@ func TestFinishToolResultAggregatesConsecutiveEditsForSameFile(t *testing.T) {
 
 func TestFinishToolResultDoesNotCollapseErrors(t *testing.T) {
 	state := tuiState{}
-	index := appendToolStart(&state, "run_command", map[string]any{"command": "go", "args": []any{"test", "./..."}})
-	finishToolResult(&state, map[string][]int{"run_command": []int{index}}, "run_command", "compiler error\nline 2", true)
+	index := appendToolStart(&state, "run_shell", map[string]any{"command": "go", "args": []any{"test", "./..."}})
+	finishToolResult(&state, map[string][]int{"run_shell": []int{index}}, "run_shell", "compiler error\nline 2", true)
 	screen := New(Args{CWD: t.TempDir(), Tools: tools.NewRegistry(nil, tools.Metadata{}), Model: model.Mock{}}).renderTUIScreen(state, 100, 30)
 	if !strings.Contains(screen, "compiler error") || !strings.Contains(screen, "line 2") {
 		t.Fatalf("expected error output to stay expanded:\n%s", screen)

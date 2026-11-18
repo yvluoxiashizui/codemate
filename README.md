@@ -6,7 +6,7 @@
 
 - **回合循环**：拼 prompt、请求模型、解析应答、执行工具、结果回灌，直到模型给出最终答案。工具步数与模型重试分别计数，步数用尽后追加一次收尾请求。
 - **工具协议**：模型每次只返回一个 `<tool>...</tool>` 或 `<final>...</final>`。格式不合法时不重试同一请求，而是把格式提示写回历史，让模型看到自己的错误再改。
-- **内置工具**：`list_files`、`grep_files`、`read_file`、`write_file`、`edit_file`、`patch_file`、`run_command`、`load_skill`、`delegate`。执行前做参数语义校验，执行后带状态、错误码、风险等级、受影响路径。
+- **内置工具**：`list_files`、`search`、`read_file`、`write_file`、`edit_file`、`patch_file`、`run_shell`、`load_skill`、`delegate`。执行前做参数语义校验，执行后带状态、错误码、风险等级、受影响路径。
 - **子 agent 委派**：`delegate` 开一个只读子 agent 做调查，只把结论带回主上下文；嵌套深度受上限约束。
 - **上下文治理**：一轮 prompt 分五节（前缀、记忆、相关笔记、历史、当前请求），各有预算与下限；总量超上限时按固定顺序收缩。历史按新旧分层，近期保留正文，旧条目压成一行并按键去重。
 - **记忆**：短期记忆存任务摘要、文件摘要与过程笔记；长期记忆按项目约定、关键决策、依赖事实、用户偏好四类跨会话保存。说「记住」时自动提升，同主语的新记录替换旧记录。
@@ -31,7 +31,7 @@ go build -o bin/codemate ./cmd/codemate
 bin/codemate                       # 进入交互模式
 bin/codemate --resume latest       # 恢复最近一次会话
 bin/codemate --read-only           # 只允许只读工具
-bin/codemate --tool read_file --tool grep_files
+bin/codemate --tool read_file --tool search
 bin/codemate --approval auto       # ask | auto | never
 bin/codemate --max-new-tokens 512
 ```
@@ -79,7 +79,7 @@ go run ./cmd/eval -runs .codemate/runs             # 聚合历史运行工件
 
 单机单用户，没有并发与多租户设计。
 
-`run_command` 靠审批与白名单约束，不是沙箱隔离，没有资源限额。
+`run_shell` 靠审批与白名单约束，不是沙箱隔离，没有资源限额。
 
 工具调用走文本协议：不接 MCP，也没有原生 function calling。代价是依赖模型遵循格式，格式遵从度差的模型会频繁解析失败。
 

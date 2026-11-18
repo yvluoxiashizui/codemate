@@ -24,13 +24,13 @@ type SkillLoader interface {
 func Builtins(cwd string, permission PermissionManager, skillLoader SkillLoader) *Registry {
 	definitions := []Definition{
 		listFilesTool(),
-		grepFilesTool(),
+		searchTool(),
 		readFileTool(),
 		writeFileTool(),
 		modifyFileTool(),
 		editFileTool(),
 		patchFileTool(),
-		runCommandTool(),
+		runShellTool(),
 		loadSkillTool(skillLoader),
 		delegateTool(),
 	}
@@ -77,9 +77,9 @@ func listFilesTool() Definition {
 	}
 }
 
-func grepFilesTool() Definition {
+func searchTool() Definition {
 	return Definition{
-		Name:        "grep_files",
+		Name:        "search",
 		Validate:    validateGrepFiles,
 		Risk:        RiskLow,
 		ReadOnly:    true,
@@ -308,9 +308,9 @@ func patchFileTool() Definition {
 	}
 }
 
-func runCommandTool() Definition {
+func runShellTool() Definition {
 	return Definition{
-		Name:        "run_command",
+		Name:        "run_shell",
 		Validate:    validateRunCommand,
 		Risk:        RiskHigh,
 		ReadOnly:    false,

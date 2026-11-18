@@ -11,7 +11,7 @@ func TestRunCommandDoesNotInheritSecrets(t *testing.T) {
 
 	root := t.TempDir()
 	registry := Builtins(root, nil, nil)
-	result := registry.Execute(context.Background(), "run_command", map[string]any{
+	result := registry.Execute(context.Background(), "run_shell", map[string]any{
 		"command": "env",
 	}, Context{CWD: root})
 
@@ -26,7 +26,7 @@ func TestRunCommandDoesNotInheritSecrets(t *testing.T) {
 func TestRunCommandKeepsPathInEnv(t *testing.T) {
 	root := t.TempDir()
 	registry := Builtins(root, nil, nil)
-	result := registry.Execute(context.Background(), "run_command", map[string]any{
+	result := registry.Execute(context.Background(), "run_shell", map[string]any{
 		"command": "env",
 	}, Context{CWD: root})
 
@@ -43,7 +43,7 @@ func TestRunCommandDropsUnlistedVariables(t *testing.T) {
 
 	root := t.TempDir()
 	registry := Builtins(root, nil, nil)
-	result := registry.Execute(context.Background(), "run_command", map[string]any{
+	result := registry.Execute(context.Background(), "run_shell", map[string]any{
 		"command": "env",
 	}, Context{CWD: root})
 
