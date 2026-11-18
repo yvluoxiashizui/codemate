@@ -122,13 +122,13 @@ func validateWriteFile(raw json.RawMessage, tc Context) error {
 	return nil
 }
 
-// validatePatchFile 校验每条替换的检索片段都不为空。
+// validatePatchFile 校验 patch_file 的单次精确替换条件。
+// 要求 old_text 在文件里恰好出现一次，这样修改结果才是确定的。
 func validatePatchFile(raw json.RawMessage, tc Context) error {
 	var input struct {
-		Path         string `json:"path"`
-		Replacements []struct {
-			Search string `json:"search"`
-		} `json:"replacements"`
+		Path    string `json:"path"`
+		OldText string `json:"old_text"`
+		NewText string `json:"new_text"`
 	}
 	if err := json.Unmarshal(raw, &input); err != nil {
 		return err
@@ -136,13 +136,16 @@ func validatePatchFile(raw json.RawMessage, tc Context) error {
 	if strings.TrimSpace(input.Path) == "" {
 		return errors.New("path must not be empty")
 	}
-	if len(input.Replacements) == 0 {
-		return errors.New("replacements must not be empty")
+	if input.OldText == "" {
+		return errors.New("old_text must not be empty")
 	}
-	for index, item := range input.Replacements {
-		if item.Search == "" {
-			return errors.New("replacement " + strconv.Itoa(index+1) + ": search must not be empty")
-		}
+	target := filepath.Join(tc.CWD, input.Path)
+	payload, err := os.ReadFile(target)
+	if err != nil {
+		return errors.New("path does not exist")
+	}
+	if count := strings.Count(string(payload), input.OldText); count != 1 {
+		return errors.New("old_text must occur exactly once, found " + strconv.Itoa(count))
 	}
 	return nil
 }

@@ -255,26 +255,17 @@ func patchFileTool() Definition {
 		Validate:    validatePatchFile,
 		Risk:        RiskHigh,
 		ReadOnly:    false,
-		Description: "Apply multiple exact-text replacements to one file in a single operation.",
+		Description: "Replace one exact piece of text in a file. old_text must occur exactly once.",
 		InputSchema: objectSchema(map[string]any{
-			"path": map[string]any{"type": "string"},
-			"replacements": map[string]any{
-				"type": "array",
-				"items": objectSchema(map[string]any{
-					"search":     map[string]any{"type": "string"},
-					"replace":    map[string]any{"type": "string"},
-					"replaceAll": map[string]any{"type": "boolean"},
-				}, []string{"search", "replace"}),
-			},
-		}, []string{"path", "replacements"}),
+			"path":     map[string]any{"type": "string"},
+			"old_text": map[string]any{"type": "string"},
+			"new_text": map[string]any{"type": "string"},
+		}, []string{"path", "old_text", "new_text"}),
 		Run: func(ctx context.Context, raw json.RawMessage, tc Context) Result {
 			var input struct {
-				Path         string `json:"path"`
-				Replacements []struct {
-					Search     string `json:"search"`
-					Replace    string `json:"replace"`
-					ReplaceAll bool   `json:"replaceAll"`
-				} `json:"replacements"`
+				Path    string `json:"path"`
+				OldText string `json:"old_text"`
+				NewText string `json:"new_text"`
 			}
 			if err := json.Unmarshal(raw, &input); err != nil {
 				return Error(err.Error())
@@ -289,21 +280,16 @@ func patchFileTool() Definition {
 				return Error(err.Error())
 			}
 			content := string(bytes)
-			for index, replacement := range input.Replacements {
-				if !strings.Contains(content, replacement.Search) {
-					return Error("Replacement " + strconv.Itoa(index+1) + " not found in " + input.Path)
-				}
-				if replacement.ReplaceAll {
-					content = strings.ReplaceAll(content, replacement.Search, replacement.Replace)
-				} else {
-					content = strings.Replace(content, replacement.Search, replacement.Replace, 1)
-				}
+			// 校验阶段已经确认只出现一次，这里再确认，防止并发改动。
+			if count := strings.Count(content, input.OldText); count != 1 {
+				return Error("old_text must occur exactly once, found " + strconv.Itoa(count))
 			}
+			content = strings.Replace(content, input.OldText, input.NewText, 1)
 			result := fromReview(filereview.ApplyReviewedChange(ctx, tc.Permission, input.Path, target, content))
 			if !result.OK {
 				return result
 			}
-			return Success("Patched " + input.Path + " with " + strconv.Itoa(len(input.Replacements)) + " replacement(s)")
+			return Success("Patched " + input.Path)
 		},
 	}
 }

@@ -97,15 +97,15 @@ func ParseShortcut(input string) (message.ToolCall, bool) {
 		return tool("edit_file", map[string]any{"path": strings.TrimSpace(parts[0]), "search": parts[1], "replace": parts[2]}), true
 	}
 	if strings.HasPrefix(input, "/patch ") {
-		parts := strings.Split(strings.TrimPrefix(input, "/patch "), "::")
-		if len(parts) < 3 || len(parts)%2 != 1 {
+		parts := strings.SplitN(strings.TrimPrefix(input, "/patch "), "::", 3)
+		if len(parts) != 3 {
 			return message.ToolCall{}, false
 		}
-		replacements := []map[string]any{}
-		for i := 1; i < len(parts); i += 2 {
-			replacements = append(replacements, map[string]any{"search": parts[i], "replace": parts[i+1]})
-		}
-		return tool("patch_file", map[string]any{"path": strings.TrimSpace(parts[0]), "replacements": replacements}), true
+		return tool("patch_file", map[string]any{
+			"path":     strings.TrimSpace(parts[0]),
+			"old_text": parts[1],
+			"new_text": parts[2],
+		}), true
 	}
 	if strings.HasPrefix(input, "/cmd ") {
 		payload := strings.TrimSpace(strings.TrimPrefix(input, "/cmd "))
