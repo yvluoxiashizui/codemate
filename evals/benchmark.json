@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "name": "新建文件",
+      "prompt": "在当前目录新建 hello.txt，内容写 hi。",
+      "check": {"type": "file_equals", "path": "hello.txt", "text": "hi"}
+    },
+    {
+      "name": "修改文件内容",
+      "prompt": "把 main.go 里的 return 1 改成 return 2。",
+      "files": {"main.go": "package main\n\nfunc answer() int {\n\treturn 1\n}\n"},
+      "check": {"type": "file_contains", "path": "main.go", "text": "return 2"}
+    },
+    {
+      "name": "补充缺失的函数",
+      "prompt": "在 util.go 里补一个 Add 函数，返回两个整数之和。",
+      "files": {"util.go": "package util\n"},
+      "check": {"type": "file_contains", "path": "util.go", "text": "func Add("}
+    },
+    {
+      "name": "按内容定位再修改",
+      "prompt": "handler.go 里有一行 TODO 注释，把它替换成说明这个函数做什么的注释。",
+      "files": {
+        "handler.go": "package api\n\n// TODO: 实现\nfunc Handle() {}\n",
+        "readme.md": "# demo\n"
+      },
+      "checks": [
+        {"type": "file_not_contains", "path": "handler.go", "text": "TODO"},
+        {"type": "file_contains", "path": "handler.go", "text": "func Handle()"}
+      ]
+    },
+    {
+      "name": "不应删除无关文件",
+      "prompt": "在 notes.md 末尾追加一行 done。",
+      "files": {
+        "notes.md": "# 记录\n",
+        "keep.txt": "不能删\n"
+      },
+      "checks": [
+        {"type": "file_contains", "path": "notes.md", "text": "done"},
+        {"type": "file_contains", "path": "keep.txt", "text": "不能删"}
+      ]
+    },
+    {
+      "name": "清空临时文件",
+      "prompt": "把 temp.log 的内容清空，别动其它文件。",
+      "files": {
+        "temp.log": "debug output\n",
+        "keep.md": "# 保留\n"
+      },
+      "checks": [
+        {"type": "file_equals", "path": "temp.log", "text": ""},
+        {"type": "file_contains", "path": "keep.md", "text": "保留"}
+      ]
+    },
+    {
+      "name": "在子目录新建文件",
+      "prompt": "在 docs 目录下新建 guide.md，内容写 getting started。",
+      "check": {"type": "file_contains", "path": "docs/guide.md", "text": "getting started"}
+    },
+    {
+      "name": "追加一行",
+      "prompt": "在 changelog.md 末尾追加一行 - fix login。",
+      "files": {"changelog.md": "# 变更记录\n"},
+      "check": {"type": "file_contains", "path": "changelog.md", "text": "fix login"}
+    },
+    {
+      "name": "修正返回值",
+      "prompt": "calc.go 里的 Add 函数返回了差，改成返回两个参数的和。",
+      "files": {"calc.go": "package calc\n\nfunc Add(a, b int) int {\n\treturn a - b\n}\n"},
+      "check": {"type": "file_contains", "path": "calc.go", "text": "return a + b"}
+    },
+    {
+      "name": "不改无关文件",
+      "prompt": "把 config.yaml 里的 port 从 8080 改成 9090。",
+      "files": {
+        "config.yaml": "port: 8080\nhost: localhost\n",
+        "main.go": "package main\n"
+      },
+      "checks": [
+        {"type": "file_contains", "path": "config.yaml", "text": "9090"},
+        {"type": "file_equals", "path": "main.go", "text": "package main"}
+      ]
+    }
+  ]
+}

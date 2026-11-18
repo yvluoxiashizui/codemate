@@ -53,8 +53,15 @@ func main() {
 	}
 
 	cases := eval.DefaultCases()
-	if *benchmarkPath != "" {
-		benchmark, err := eval.LoadBenchmark(*benchmarkPath)
+	benchmarkFile := *benchmarkPath
+	if benchmarkFile == "" {
+		// 仓库里带了任务集文件时优先用它，便于直接改数据而不用改代码。
+		if candidate := filepath.Join(workdir, "evals", "benchmark.json"); fileExists(candidate) {
+			benchmarkFile = candidate
+		}
+	}
+	if benchmarkFile != "" {
+		benchmark, err := eval.LoadBenchmark(benchmarkFile)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "任务集不可用:", err)
 			os.Exit(1)
@@ -217,4 +224,10 @@ func writeSummary(path string, summary eval.Summary) error {
 		return err
 	}
 	return os.WriteFile(path, append(body, '\n'), 0o644)
+}
+
+// fileExists 判断路径是否是存在的普通文件。
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }

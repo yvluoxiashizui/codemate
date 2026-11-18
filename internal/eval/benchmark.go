@@ -19,11 +19,13 @@ type Benchmark struct {
 }
 
 // BenchmarkTask 是任务集里的一条任务。
+// 单条判定写在 check 里，需要同时满足多个条件时写在 checks 里。
 type BenchmarkTask struct {
 	Name   string            `json:"name"`
 	Prompt string            `json:"prompt"`
 	Files  map[string]string `json:"files,omitempty"`
-	Check  BenchmarkCheck    `json:"check"`
+	Check  *BenchmarkCheck   `json:"check,omitempty"`
+	Checks []BenchmarkCheck  `json:"checks,omitempty"`
 }
 
 // BenchmarkCheck 是结果判定方式。
@@ -35,9 +37,10 @@ type BenchmarkCheck struct {
 
 // 支持的判定类型。
 const (
-	CheckTypeFileEquals   = "file_equals"
-	CheckTypeFileContains = "file_contains"
-	CheckTypeFileMissing  = "file_missing"
+	CheckTypeFileEquals      = "file_equals"
+	CheckTypeFileContains    = "file_contains"
+	CheckTypeFileMissing     = "file_missing"
+	CheckTypeFileNotContains = "file_not_contains"
 )
 
 // LoadBenchmark 读取并校验任务集文件。
@@ -82,8 +85,14 @@ func ValidateBenchmark(benchmark Benchmark) error {
 				return fmt.Errorf("任务 %s: %w", name, err)
 			}
 		}
-		if err := validateCheck(name, task.Check); err != nil {
-			return err
+		checks := task.allChecks()
+		if len(checks) == 0 {
+			return fmt.Errorf("任务 %s 缺少判定条件", name)
+		}
+		for _, check := range checks {
+			if err := validateCheck(name, check); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -97,7 +106,7 @@ func validateCheck(name string, check BenchmarkCheck) error {
 		return fmt.Errorf("任务 %s: %w", name, err)
 	}
 	switch check.Type {
-	case CheckTypeFileEquals, CheckTypeFileContains:
+	case CheckTypeFileEquals, CheckTypeFileContains, CheckTypeFileNotContains:
 		if strings.TrimSpace(check.Text) == "" {
 			return fmt.Errorf("任务 %s 的判定缺少期望文本", name)
 		}
@@ -134,13 +143,51 @@ func (b Benchmark) Cases() []Case {
 	return cases
 }
 
+// allChecks 合并单条与多条判定写法。
+func (t BenchmarkTask) allChecks() []BenchmarkCheck {
+	out := make([]BenchmarkCheck, 0, 2)
+	if t.Check != nil {
+		out = append(out, *t.Check)
+	}
+	out = append(out, t.Checks...)
+	return out
+}
+
 func (t BenchmarkTask) checkFunc() func(root string) error {
-	switch t.Check.Type {
+	checks := t.allChecks()
+	return func(root string) error {
+		for _, check := range checks {
+			if err := runCheck(root, check); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func runCheck(root string, check BenchmarkCheck) error {
+	switch check.Type {
 	case CheckTypeFileEquals:
-		return CheckFileEquals(t.Check.Path, t.Check.Text)
+		return CheckFileEquals(check.Path, check.Text)(root)
 	case CheckTypeFileContains:
-		return CheckFileContains(t.Check.Path, t.Check.Text)
+		return CheckFileContains(check.Path, check.Text)(root)
+	case CheckTypeFileNotContains:
+		return checkFileNotContains(check.Path, check.Text)(root)
 	default:
-		return CheckFileMissing(t.Check.Path)
+		return CheckFileMissing(check.Path)(root)
+	}
+}
+
+// checkFileNotContains 判定文件存在且不包含指定片段。
+func checkFileNotContains(path, text string) func(root string) error {
+	return func(root string) error {
+		payload, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(payload), text) {
+			return fmt.Errorf("文件仍包含不该出现的片段: " + path)
+		}
+		return nil
 	}
 }

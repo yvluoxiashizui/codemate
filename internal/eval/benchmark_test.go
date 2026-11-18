@@ -28,7 +28,7 @@ func validBenchmark() Benchmark {
 		Tasks: []BenchmarkTask{{
 			Name:   "新建文件",
 			Prompt: "写一个 hello.txt",
-			Check:  BenchmarkCheck{Type: CheckTypeFileContains, Path: "hello.txt", Text: "hi"},
+			Check:  &BenchmarkCheck{Type: CheckTypeFileContains, Path: "hello.txt", Text: "hi"},
 		}},
 	}
 }
@@ -105,7 +105,7 @@ func TestBenchmarkCheckFileMissing(t *testing.T) {
 		Tasks: []BenchmarkTask{{
 			Name:   "不该建文件",
 			Prompt: "什么都别做",
-			Check:  BenchmarkCheck{Type: CheckTypeFileMissing, Path: "unused.txt"},
+			Check:  &BenchmarkCheck{Type: CheckTypeFileMissing, Path: "unused.txt"},
 		}},
 	}
 	if err := ValidateBenchmark(benchmark); err != nil {
